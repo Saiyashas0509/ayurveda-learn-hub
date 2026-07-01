@@ -10,7 +10,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const bootstrapFirstAdmin = createServerFn({ method: "POST" })
   .inputValidator((data: { email: string; fullName: string }) => {
     const schema = z.object({
-      email: z.string().trim().toLowerCase().refine((v) => EMAIL_RE.test(v), "Invalid email").max(255),
+      email: z.string().trim().toLowerCase().max(255).refine((v) => EMAIL_RE.test(v), "Invalid email"),
       fullName: z.string().trim().min(2).max(120),
     });
     return schema.parse(data);
@@ -76,7 +76,7 @@ export const superAdminExists = createServerFn({ method: "GET" }).handler(async 
 // Request an OTP after verifying the employee exists and is active.
 export const requestLoginOtp = createServerFn({ method: "POST" })
   .inputValidator((data: { email: string }) => {
-    return z.object({ email: z.string().trim().toLowerCase().max(255).refine((v) => EMAIL_RE.test(v)) }).parse(data);
+    return z.object({ email: z.string().trim().toLowerCase().max(255).refine((v) => EMAIL_RE.test(v), "Invalid email") }).parse(data) as { email: string };
   })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
