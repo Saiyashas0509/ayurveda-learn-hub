@@ -13,7 +13,7 @@ export const bootstrapFirstAdmin = createServerFn({ method: "POST" })
       email: z.string().trim().toLowerCase().max(255).refine((v) => EMAIL_RE.test(v), "Invalid email"),
       fullName: z.string().trim().min(2).max(120),
     });
-    return schema.parse(data);
+    return schema.parse(data) as { email: string; fullName: string };
   })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
