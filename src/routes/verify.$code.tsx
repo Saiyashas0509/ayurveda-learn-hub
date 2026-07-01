@@ -15,8 +15,17 @@ function VerifyPage() {
     queryKey: ["verify", code],
     queryFn: () => verify({ data: { code } }),
   });
-
-  const cert = data?.cert;
+  // Supabase returns single relations as arrays in generated types; cast.
+  const cert = data?.cert as
+    | {
+        cert_code: string;
+        issued_at: string;
+        score_percent: number | null;
+        courses: { title: string } | null;
+        employees: { full_name: string; centers: { name: string } | null } | null;
+      }
+    | null
+    | undefined;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
