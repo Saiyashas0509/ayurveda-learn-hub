@@ -1,6 +1,7 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { GraduationCap, Shield, Award, BookOpen } from "lucide-react";
+import { Shield, Award, BookOpen } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
@@ -15,15 +16,7 @@ function Landing() {
   return (
     <div className="min-h-screen bg-background">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <GraduationCap className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="font-display text-base font-semibold">Travancore Ayurveda</p>
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Learning Portal</p>
-          </div>
-        </div>
+        <BrandLogo className="h-12" />
         <Link
           to="/auth"
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
