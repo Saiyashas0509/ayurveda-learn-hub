@@ -40,21 +40,23 @@ function AuthPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Verify employee exists / rate limit + audit log server-side
-      await request({ data: { email: email.trim().toLowerCase() } });
-      // Send the actual OTP via Supabase Auth (built-in email)
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: { shouldCreateUser: false },
-      });
-      if (error) throw error;
-      toast.success("OTP sent to your email.");
+      const addr = email.trim().toLowerCase();
+      // Server checks employee/pending-bootstrap allow-list, rate limit, audit
+      const res = await request({ data: { email: addr } });
+      if (res.allowed) {
+        const { error } = await supabase.auth.signInWithOtp({
+          email: addr,
+          options: { shouldCreateUser: res.isNewSignup },
+        });
+        if (error) throw error;
+      }
+      // Always show the OTP stage to avoid leaking whether the email is registered.
+      toast.success("If your account exists, an OTP has been sent.");
       setStage("otp");
       setCooldown(30);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong.";
-      toast.error(msg.includes("not found") || msg.includes("Signups not allowed") ? "If your account exists, an OTP has been sent." : msg);
-      if (msg.includes("Signups not allowed") || msg.includes("not found")) setStage("otp");
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
