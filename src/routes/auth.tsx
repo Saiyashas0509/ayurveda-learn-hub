@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { GraduationCap, ShieldCheck, Mail, ArrowRight, Loader2 } from "lucide-react";
+import { ShieldCheck, Mail, ArrowRight, Loader2 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 export const Route = createFileRoute("/auth")({
@@ -90,15 +91,7 @@ function AuthPage() {
       <div className="relative hidden overflow-hidden lg:block">
         <div className="bg-hero absolute inset-0" />
         <div className="relative flex h-full flex-col justify-between p-12 text-primary-foreground">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold text-gold-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-display text-lg font-semibold leading-tight">Travancore Ayurveda</p>
-              <p className="text-xs uppercase tracking-widest text-primary-foreground/70">Learning Portal</p>
-            </div>
-          </div>
+          <BrandLogo onDark className="h-14" />
           <div>
             <h1 className="max-w-md font-display text-4xl font-semibold leading-tight">
               Continue your learning journey — securely.
@@ -120,15 +113,7 @@ function AuthPage() {
       <div className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <GraduationCap className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="font-display text-lg font-semibold leading-tight">Travancore Ayurveda</p>
-                <p className="text-xs uppercase tracking-widest text-muted-foreground">Learning Portal</p>
-              </div>
-            </div>
+            <BrandLogo className="h-12" />
           </div>
 
           {stage === "email" ? (
