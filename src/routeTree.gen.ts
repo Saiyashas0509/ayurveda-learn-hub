@@ -14,6 +14,7 @@ import { Route as DemoRouteImport } from './routes/demo'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DemoIndexRouteImport } from './routes/demo.index'
 import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -50,6 +51,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DemoIndexRoute = DemoIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DemoRoute,
 } as any)
 const VerifyCodeRoute = VerifyCodeRouteImport.update({
   id: '/verify/$code',
@@ -120,13 +126,14 @@ const AuthenticatedAdminAnnouncementsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/demo': typeof DemoRoute
+  '/demo': typeof DemoRouteWithChildren
   '/setup': typeof SetupRoute
   '/catalog': typeof AuthenticatedCatalogRoute
   '/certificates': typeof AuthenticatedCertificatesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/verify/$code': typeof VerifyCodeRoute
+  '/demo/': typeof DemoIndexRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -138,13 +145,13 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/demo': typeof DemoRoute
   '/setup': typeof SetupRoute
   '/catalog': typeof AuthenticatedCatalogRoute
   '/certificates': typeof AuthenticatedCertificatesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/verify/$code': typeof VerifyCodeRoute
+  '/demo': typeof DemoIndexRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -158,13 +165,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/demo': typeof DemoRoute
+  '/demo': typeof DemoRouteWithChildren
   '/setup': typeof SetupRoute
   '/_authenticated/catalog': typeof AuthenticatedCatalogRoute
   '/_authenticated/certificates': typeof AuthenticatedCertificatesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/verify/$code': typeof VerifyCodeRoute
+  '/demo/': typeof DemoIndexRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -185,6 +193,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/profile'
     | '/verify/$code'
+    | '/demo/'
     | '/admin/announcements'
     | '/admin/audit-logs'
     | '/admin/users'
@@ -196,13 +205,13 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
-    | '/demo'
     | '/setup'
     | '/catalog'
     | '/certificates'
     | '/dashboard'
     | '/profile'
     | '/verify/$code'
+    | '/demo'
     | '/admin/announcements'
     | '/admin/audit-logs'
     | '/admin/users'
@@ -222,6 +231,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/profile'
     | '/verify/$code'
+    | '/demo/'
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/audit-logs'
     | '/_authenticated/admin/users'
@@ -235,7 +245,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  DemoRoute: typeof DemoRoute
+  DemoRoute: typeof DemoRouteWithChildren
   SetupRoute: typeof SetupRoute
   VerifyCodeRoute: typeof VerifyCodeRoute
 }
@@ -276,6 +286,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/demo/': {
+      id: '/demo/'
+      path: '/'
+      fullPath: '/demo/'
+      preLoaderRoute: typeof DemoIndexRouteImport
+      parentRoute: typeof DemoRoute
     }
     '/verify/$code': {
       id: '/verify/$code'
@@ -395,11 +412,21 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface DemoRouteChildren {
+  DemoIndexRoute: typeof DemoIndexRoute
+}
+
+const DemoRouteChildren: DemoRouteChildren = {
+  DemoIndexRoute: DemoIndexRoute,
+}
+
+const DemoRouteWithChildren = DemoRoute._addFileChildren(DemoRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  DemoRoute: DemoRoute,
+  DemoRoute: DemoRouteWithChildren,
   SetupRoute: SetupRoute,
   VerifyCodeRoute: VerifyCodeRoute,
 }
