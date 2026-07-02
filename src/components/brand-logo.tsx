@@ -1,4 +1,4 @@
-import logo from "@/assets/travancore-ayurveda-logo.png.asset.json";
+import logo from "@/assets/travancore-ayurveda-logo-transparent.png.asset.json";
 import { cn } from "@/lib/utils";
 
 type BrandLogoProps = {
