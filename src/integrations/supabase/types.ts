@@ -454,6 +454,24 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_bootstrap: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+        }
+        Relationships: []
+      }
       question_options: {
         Row: {
           id: string
