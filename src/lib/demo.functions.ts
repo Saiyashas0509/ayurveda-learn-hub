@@ -3,20 +3,18 @@
 // learner experience without an account. Never exposes quiz correctness,
 // user progress, PII, or admin data.
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
 
-function publicClient() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { storage: undefined, persistSession: false, autoRefreshToken: false } },
-  );
+// Demo uses the service-role client on the server to read published
+// content without requiring per-table anon RLS policies. Only safe
+// columns are projected; is_correct is never selected.
+async function publicClient() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
 }
 
 export const getDemoDashboard = createServerFn({ method: "GET" }).handler(async () => {
-  const supabase = publicClient();
+  const supabase = await publicClient();
   const [courses, announcements, categories] = await Promise.all([
     supabase.from("courses").select("id,title,slug,description,cover_url,duration_minutes,category_id,course_categories(name)").eq("is_published", true).limit(6),
     supabase.from("announcements").select("id,title,body,published_at").order("published_at", { ascending: false }).limit(5),
@@ -30,7 +28,7 @@ export const getDemoDashboard = createServerFn({ method: "GET" }).handler(async 
 });
 
 export const getDemoCatalog = createServerFn({ method: "GET" }).handler(async () => {
-  const supabase = publicClient();
+  const supabase = await publicClient();
   const [cats, courses] = await Promise.all([
     supabase.from("course_categories").select("id,name,slug").order("sort_order"),
     supabase.from("courses").select("id,title,slug,description,cover_url,duration_minutes,category_id").eq("is_published", true).order("created_at", { ascending: false }),
@@ -41,7 +39,7 @@ export const getDemoCatalog = createServerFn({ method: "GET" }).handler(async ()
 export const getDemoCourse = createServerFn({ method: "GET" })
   .inputValidator((data: { slug: string }) => z.object({ slug: z.string().min(1).max(120) }).parse(data))
   .handler(async ({ data }) => {
-    const supabase = publicClient();
+    const supabase = await publicClient();
     const { data: course } = await supabase
       .from("courses")
       .select("id,title,slug,description,duration_minutes,course_categories(name,slug)")
@@ -60,7 +58,7 @@ export const getDemoCourse = createServerFn({ method: "GET" })
 export const getDemoLesson = createServerFn({ method: "GET" })
   .inputValidator((data: { lessonId: string }) => z.object({ lessonId: z.string().uuid() }).parse(data))
   .handler(async ({ data }) => {
-    const supabase = publicClient();
+    const supabase = await publicClient();
     const { data: lesson } = await supabase
       .from("lessons")
       .select("id,title,video_url,pdf_url,key_notes,transcript,duration_seconds,course_id,courses(id,title,slug)")
@@ -78,7 +76,7 @@ export const getDemoLesson = createServerFn({ method: "GET" })
 export const getDemoQuiz = createServerFn({ method: "GET" })
   .inputValidator((data: { quizId: string }) => z.object({ quizId: z.string().uuid() }).parse(data))
   .handler(async ({ data }) => {
-    const supabase = publicClient();
+    const supabase = await publicClient();
     const { data: quiz } = await supabase
       .from("quizzes")
       .select("id,title,pass_percent,time_limit_seconds")
