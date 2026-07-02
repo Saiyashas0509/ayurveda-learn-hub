@@ -113,7 +113,7 @@ function AuthPage() {
       <div className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden">
-            <BrandLogo className="h-60_day60" />
+            <BrandLogo className="h-60" />
           </div>
 
           {stage === "email" ? (
