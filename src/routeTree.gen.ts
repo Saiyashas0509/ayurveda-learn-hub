@@ -22,6 +22,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCertificatesRouteImport } from './routes/_authenticated/certificates'
 import { Route as AuthenticatedCatalogRouteImport } from './routes/_authenticated/catalog'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as DemoLessonsLessonIdRouteImport } from './routes/demo.lessons.$lessonId'
 import { Route as DemoCoursesSlugRouteImport } from './routes/demo.courses.$slug'
 import { Route as AuthenticatedQuizQuizIdRouteImport } from './routes/_authenticated/quiz.$quizId'
 import { Route as AuthenticatedLessonsLessonIdRouteImport } from './routes/_authenticated/lessons.$lessonId'
@@ -95,6 +96,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const DemoLessonsLessonIdRoute = DemoLessonsLessonIdRouteImport.update({
+  id: '/lessons/$lessonId',
+  path: '/lessons/$lessonId',
+  getParentRoute: () => DemoRoute,
+} as any)
 const DemoCoursesSlugRoute = DemoCoursesSlugRouteImport.update({
   id: '/courses/$slug',
   path: '/courses/$slug',
@@ -154,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/demo/courses/$slug': typeof DemoCoursesSlugRoute
+  '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/demo/courses/$slug': typeof DemoCoursesSlugRoute
+  '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
@@ -197,6 +205,7 @@ export interface FileRoutesById {
   '/_authenticated/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
   '/_authenticated/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
   '/demo/courses/$slug': typeof DemoCoursesSlugRoute
+  '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -220,6 +229,7 @@ export interface FileRouteTypes {
     | '/lessons/$lessonId'
     | '/quiz/$quizId'
     | '/demo/courses/$slug'
+    | '/demo/lessons/$lessonId'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -240,6 +250,7 @@ export interface FileRouteTypes {
     | '/lessons/$lessonId'
     | '/quiz/$quizId'
     | '/demo/courses/$slug'
+    | '/demo/lessons/$lessonId'
     | '/admin'
   id:
     | '__root__'
@@ -262,6 +273,7 @@ export interface FileRouteTypes {
     | '/_authenticated/lessons/$lessonId'
     | '/_authenticated/quiz/$quizId'
     | '/demo/courses/$slug'
+    | '/demo/lessons/$lessonId'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -367,6 +379,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/demo/lessons/$lessonId': {
+      id: '/demo/lessons/$lessonId'
+      path: '/lessons/$lessonId'
+      fullPath: '/demo/lessons/$lessonId'
+      preLoaderRoute: typeof DemoLessonsLessonIdRouteImport
+      parentRoute: typeof DemoRoute
+    }
     '/demo/courses/$slug': {
       id: '/demo/courses/$slug'
       path: '/courses/$slug'
@@ -454,12 +473,14 @@ interface DemoRouteChildren {
   DemoCatalogRoute: typeof DemoCatalogRoute
   DemoIndexRoute: typeof DemoIndexRoute
   DemoCoursesSlugRoute: typeof DemoCoursesSlugRoute
+  DemoLessonsLessonIdRoute: typeof DemoLessonsLessonIdRoute
 }
 
 const DemoRouteChildren: DemoRouteChildren = {
   DemoCatalogRoute: DemoCatalogRoute,
   DemoIndexRoute: DemoIndexRoute,
   DemoCoursesSlugRoute: DemoCoursesSlugRoute,
+  DemoLessonsLessonIdRoute: DemoLessonsLessonIdRoute,
 }
 
 const DemoRouteWithChildren = DemoRoute._addFileChildren(DemoRouteChildren)
