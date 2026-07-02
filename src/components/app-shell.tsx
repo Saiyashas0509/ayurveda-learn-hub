@@ -93,7 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center gap-3 border-b border-sidebar-border/60 px-6 py-5">
-            <BrandLogo onDark className="h-12" />
+            <BrandLogo onDark className="h-60" />
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 py-4">

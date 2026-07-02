@@ -32,7 +32,7 @@ function VerifyPage() {
       <div className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-card">
         <div className="bg-hero p-6 text-primary-foreground">
           <div className="flex items-center justify-between gap-3">
-            <BrandLogo onDark className="h-12" />
+            <BrandLogo onDark className="h-60" />
             <p className="text-xs uppercase tracking-widest text-primary-foreground/70">Certificate Verification</p>
           </div>
         </div>

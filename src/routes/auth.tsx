@@ -91,7 +91,7 @@ function AuthPage() {
       <div className="relative hidden overflow-hidden lg:block">
         <div className="bg-hero absolute inset-0" />
         <div className="relative flex h-full flex-col justify-between p-12 text-primary-foreground">
-          <BrandLogo onDark className="h-14" />
+          <BrandLogo onDark className="h-72" />
           <div>
             <h1 className="max-w-md font-display text-4xl font-semibold leading-tight">
               Continue your learning journey — securely.
@@ -113,7 +113,7 @@ function AuthPage() {
       <div className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden">
-            <BrandLogo className="h-12" />
+            <BrandLogo className="h-60_day60" />
           </div>
 
           {stage === "email" ? (
