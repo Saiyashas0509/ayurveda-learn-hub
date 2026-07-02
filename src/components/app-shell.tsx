@@ -10,13 +10,13 @@ import {
   LogOut,
   Menu,
   X,
-  GraduationCap,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, signOutFully, type AppRole } from "@/lib/auth-helpers";
+import { BrandLogo } from "@/components/brand-logo";
 
 const learnerNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
