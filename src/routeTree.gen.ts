@@ -10,15 +10,21 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as DemoRouteImport } from './routes/demo'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DemoIndexRouteImport } from './routes/demo.index'
 import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
+import { Route as DemoCatalogRouteImport } from './routes/demo.catalog'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCertificatesRouteImport } from './routes/_authenticated/certificates'
 import { Route as AuthenticatedCatalogRouteImport } from './routes/_authenticated/catalog'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as DemoQuizQuizIdRouteImport } from './routes/demo.quiz.$quizId'
+import { Route as DemoLessonsLessonIdRouteImport } from './routes/demo.lessons.$lessonId'
+import { Route as DemoCoursesSlugRouteImport } from './routes/demo.courses.$slug'
 import { Route as AuthenticatedQuizQuizIdRouteImport } from './routes/_authenticated/quiz.$quizId'
 import { Route as AuthenticatedLessonsLessonIdRouteImport } from './routes/_authenticated/lessons.$lessonId'
 import { Route as AuthenticatedCoursesSlugRouteImport } from './routes/_authenticated/courses.$slug'
@@ -29,6 +35,11 @@ import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_a
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoRoute = DemoRouteImport.update({
+  id: '/demo',
+  path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -45,10 +56,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DemoIndexRoute = DemoIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DemoRoute,
+} as any)
 const VerifyCodeRoute = VerifyCodeRouteImport.update({
   id: '/verify/$code',
   path: '/verify/$code',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DemoCatalogRoute = DemoCatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
+  getParentRoute: () => DemoRoute,
 } as any)
 const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   id: '/profile',
@@ -75,6 +96,21 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const DemoQuizQuizIdRoute = DemoQuizQuizIdRouteImport.update({
+  id: '/quiz/$quizId',
+  path: '/quiz/$quizId',
+  getParentRoute: () => DemoRoute,
+} as any)
+const DemoLessonsLessonIdRoute = DemoLessonsLessonIdRouteImport.update({
+  id: '/lessons/$lessonId',
+  path: '/lessons/$lessonId',
+  getParentRoute: () => DemoRoute,
+} as any)
+const DemoCoursesSlugRoute = DemoCoursesSlugRouteImport.update({
+  id: '/courses/$slug',
+  path: '/courses/$slug',
+  getParentRoute: () => DemoRoute,
 } as any)
 const AuthenticatedQuizQuizIdRoute = AuthenticatedQuizQuizIdRouteImport.update({
   id: '/quiz/$quizId',
@@ -114,18 +150,24 @@ const AuthenticatedAdminAnnouncementsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/demo': typeof DemoRouteWithChildren
   '/setup': typeof SetupRoute
   '/catalog': typeof AuthenticatedCatalogRoute
   '/certificates': typeof AuthenticatedCertificatesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/demo/catalog': typeof DemoCatalogRoute
   '/verify/$code': typeof VerifyCodeRoute
+  '/demo/': typeof DemoIndexRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
   '/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
+  '/demo/courses/$slug': typeof DemoCoursesSlugRoute
+  '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
+  '/demo/quiz/$quizId': typeof DemoQuizQuizIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -136,13 +178,18 @@ export interface FileRoutesByTo {
   '/certificates': typeof AuthenticatedCertificatesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/demo/catalog': typeof DemoCatalogRoute
   '/verify/$code': typeof VerifyCodeRoute
+  '/demo': typeof DemoIndexRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
   '/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
+  '/demo/courses/$slug': typeof DemoCoursesSlugRoute
+  '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
+  '/demo/quiz/$quizId': typeof DemoQuizQuizIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
@@ -150,18 +197,24 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/demo': typeof DemoRouteWithChildren
   '/setup': typeof SetupRoute
   '/_authenticated/catalog': typeof AuthenticatedCatalogRoute
   '/_authenticated/certificates': typeof AuthenticatedCertificatesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/demo/catalog': typeof DemoCatalogRoute
   '/verify/$code': typeof VerifyCodeRoute
+  '/demo/': typeof DemoIndexRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/courses/$slug': typeof AuthenticatedCoursesSlugRoute
   '/_authenticated/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
   '/_authenticated/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
+  '/demo/courses/$slug': typeof DemoCoursesSlugRoute
+  '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
+  '/demo/quiz/$quizId': typeof DemoQuizQuizIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -169,18 +222,24 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/demo'
     | '/setup'
     | '/catalog'
     | '/certificates'
     | '/dashboard'
     | '/profile'
+    | '/demo/catalog'
     | '/verify/$code'
+    | '/demo/'
     | '/admin/announcements'
     | '/admin/audit-logs'
     | '/admin/users'
     | '/courses/$slug'
     | '/lessons/$lessonId'
     | '/quiz/$quizId'
+    | '/demo/courses/$slug'
+    | '/demo/lessons/$lessonId'
+    | '/demo/quiz/$quizId'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -191,31 +250,42 @@ export interface FileRouteTypes {
     | '/certificates'
     | '/dashboard'
     | '/profile'
+    | '/demo/catalog'
     | '/verify/$code'
+    | '/demo'
     | '/admin/announcements'
     | '/admin/audit-logs'
     | '/admin/users'
     | '/courses/$slug'
     | '/lessons/$lessonId'
     | '/quiz/$quizId'
+    | '/demo/courses/$slug'
+    | '/demo/lessons/$lessonId'
+    | '/demo/quiz/$quizId'
     | '/admin'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/demo'
     | '/setup'
     | '/_authenticated/catalog'
     | '/_authenticated/certificates'
     | '/_authenticated/dashboard'
     | '/_authenticated/profile'
+    | '/demo/catalog'
     | '/verify/$code'
+    | '/demo/'
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/audit-logs'
     | '/_authenticated/admin/users'
     | '/_authenticated/courses/$slug'
     | '/_authenticated/lessons/$lessonId'
     | '/_authenticated/quiz/$quizId'
+    | '/demo/courses/$slug'
+    | '/demo/lessons/$lessonId'
+    | '/demo/quiz/$quizId'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -223,6 +293,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  DemoRoute: typeof DemoRouteWithChildren
   SetupRoute: typeof SetupRoute
   VerifyCodeRoute: typeof VerifyCodeRoute
 }
@@ -234,6 +305,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo': {
+      id: '/demo'
+      path: '/demo'
+      fullPath: '/demo'
+      preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -257,12 +335,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/demo/': {
+      id: '/demo/'
+      path: '/'
+      fullPath: '/demo/'
+      preLoaderRoute: typeof DemoIndexRouteImport
+      parentRoute: typeof DemoRoute
+    }
     '/verify/$code': {
       id: '/verify/$code'
       path: '/verify/$code'
       fullPath: '/verify/$code'
       preLoaderRoute: typeof VerifyCodeRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/demo/catalog': {
+      id: '/demo/catalog'
+      path: '/catalog'
+      fullPath: '/demo/catalog'
+      preLoaderRoute: typeof DemoCatalogRouteImport
+      parentRoute: typeof DemoRoute
     }
     '/_authenticated/profile': {
       id: '/_authenticated/profile'
@@ -298,6 +390,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/demo/quiz/$quizId': {
+      id: '/demo/quiz/$quizId'
+      path: '/quiz/$quizId'
+      fullPath: '/demo/quiz/$quizId'
+      preLoaderRoute: typeof DemoQuizQuizIdRouteImport
+      parentRoute: typeof DemoRoute
+    }
+    '/demo/lessons/$lessonId': {
+      id: '/demo/lessons/$lessonId'
+      path: '/lessons/$lessonId'
+      fullPath: '/demo/lessons/$lessonId'
+      preLoaderRoute: typeof DemoLessonsLessonIdRouteImport
+      parentRoute: typeof DemoRoute
+    }
+    '/demo/courses/$slug': {
+      id: '/demo/courses/$slug'
+      path: '/courses/$slug'
+      fullPath: '/demo/courses/$slug'
+      preLoaderRoute: typeof DemoCoursesSlugRouteImport
+      parentRoute: typeof DemoRoute
     }
     '/_authenticated/quiz/$quizId': {
       id: '/_authenticated/quiz/$quizId'
@@ -375,23 +488,32 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface DemoRouteChildren {
+  DemoCatalogRoute: typeof DemoCatalogRoute
+  DemoIndexRoute: typeof DemoIndexRoute
+  DemoCoursesSlugRoute: typeof DemoCoursesSlugRoute
+  DemoLessonsLessonIdRoute: typeof DemoLessonsLessonIdRoute
+  DemoQuizQuizIdRoute: typeof DemoQuizQuizIdRoute
+}
+
+const DemoRouteChildren: DemoRouteChildren = {
+  DemoCatalogRoute: DemoCatalogRoute,
+  DemoIndexRoute: DemoIndexRoute,
+  DemoCoursesSlugRoute: DemoCoursesSlugRoute,
+  DemoLessonsLessonIdRoute: DemoLessonsLessonIdRoute,
+  DemoQuizQuizIdRoute: DemoQuizQuizIdRoute,
+}
+
+const DemoRouteWithChildren = DemoRoute._addFileChildren(DemoRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  DemoRoute: DemoRouteWithChildren,
   SetupRoute: SetupRoute,
   VerifyCodeRoute: VerifyCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
