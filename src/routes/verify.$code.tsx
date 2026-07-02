@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { verifyCertificate } from "@/lib/learning.functions";
-import { ShieldCheck, XCircle, GraduationCap, Loader2 } from "lucide-react";
+import { ShieldCheck, XCircle, Loader2 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export const Route = createFileRoute("/verify/$code")({
   component: VerifyPage,
@@ -30,14 +31,9 @@ function VerifyPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
       <div className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-card">
         <div className="bg-hero p-6 text-primary-foreground">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold text-gold-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-display text-lg font-semibold">Travancore Ayurveda</p>
-              <p className="text-xs uppercase tracking-widest text-primary-foreground/70">Certificate Verification</p>
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <BrandLogo onDark className="h-12" />
+            <p className="text-xs uppercase tracking-widest text-primary-foreground/70">Certificate Verification</p>
           </div>
         </div>
         <div className="p-6">
