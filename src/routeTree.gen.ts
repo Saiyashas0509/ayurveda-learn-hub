@@ -22,6 +22,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCertificatesRouteImport } from './routes/_authenticated/certificates'
 import { Route as AuthenticatedCatalogRouteImport } from './routes/_authenticated/catalog'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as DemoCoursesSlugRouteImport } from './routes/demo.courses.$slug'
 import { Route as AuthenticatedQuizQuizIdRouteImport } from './routes/_authenticated/quiz.$quizId'
 import { Route as AuthenticatedLessonsLessonIdRouteImport } from './routes/_authenticated/lessons.$lessonId'
 import { Route as AuthenticatedCoursesSlugRouteImport } from './routes/_authenticated/courses.$slug'
@@ -94,6 +95,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const DemoCoursesSlugRoute = DemoCoursesSlugRouteImport.update({
+  id: '/courses/$slug',
+  path: '/courses/$slug',
+  getParentRoute: () => DemoRoute,
+} as any)
 const AuthenticatedQuizQuizIdRoute = AuthenticatedQuizQuizIdRouteImport.update({
   id: '/quiz/$quizId',
   path: '/quiz/$quizId',
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
   '/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
+  '/demo/courses/$slug': typeof DemoCoursesSlugRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
   '/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
+  '/demo/courses/$slug': typeof DemoCoursesSlugRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
@@ -188,6 +196,7 @@ export interface FileRoutesById {
   '/_authenticated/courses/$slug': typeof AuthenticatedCoursesSlugRoute
   '/_authenticated/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
   '/_authenticated/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
+  '/demo/courses/$slug': typeof DemoCoursesSlugRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/courses/$slug'
     | '/lessons/$lessonId'
     | '/quiz/$quizId'
+    | '/demo/courses/$slug'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/courses/$slug'
     | '/lessons/$lessonId'
     | '/quiz/$quizId'
+    | '/demo/courses/$slug'
     | '/admin'
   id:
     | '__root__'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/_authenticated/courses/$slug'
     | '/_authenticated/lessons/$lessonId'
     | '/_authenticated/quiz/$quizId'
+    | '/demo/courses/$slug'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -355,6 +367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/demo/courses/$slug': {
+      id: '/demo/courses/$slug'
+      path: '/courses/$slug'
+      fullPath: '/demo/courses/$slug'
+      preLoaderRoute: typeof DemoCoursesSlugRouteImport
+      parentRoute: typeof DemoRoute
+    }
     '/_authenticated/quiz/$quizId': {
       id: '/_authenticated/quiz/$quizId'
       path: '/quiz/$quizId'
@@ -434,11 +453,13 @@ const AuthenticatedRouteRouteWithChildren =
 interface DemoRouteChildren {
   DemoCatalogRoute: typeof DemoCatalogRoute
   DemoIndexRoute: typeof DemoIndexRoute
+  DemoCoursesSlugRoute: typeof DemoCoursesSlugRoute
 }
 
 const DemoRouteChildren: DemoRouteChildren = {
   DemoCatalogRoute: DemoCatalogRoute,
   DemoIndexRoute: DemoIndexRoute,
+  DemoCoursesSlugRoute: DemoCoursesSlugRoute,
 }
 
 const DemoRouteWithChildren = DemoRoute._addFileChildren(DemoRouteChildren)
