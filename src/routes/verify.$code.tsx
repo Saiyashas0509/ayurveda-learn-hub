@@ -20,7 +20,6 @@ function VerifyPage() {
     | {
         cert_code: string;
         issued_at: string;
-        score_percent: number | null;
         courses: { title: string } | null;
         employees: { full_name: string; centers: { name: string } | null } | null;
       }
