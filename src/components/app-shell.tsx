@@ -91,9 +91,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex h-full flex-col">
-          <div className="flex items-center gap-3 border-b border-sidebar-border/60 px-6 py-5">
-            <BrandLogo onDark className="h-60" />
+          <div className="flex h-full flex-col">
+          <div className="flex items-center gap-3 border-b border-sidebar-border/60 px-6 py-4">
+            <BrandLogo onDark className="h-16" />
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 py-4">
