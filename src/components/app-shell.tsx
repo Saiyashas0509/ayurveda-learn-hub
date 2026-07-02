@@ -93,13 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center gap-3 border-b border-sidebar-border/60 px-6 py-5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold text-gold-foreground">
-              <GraduationCap className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-display text-lg font-semibold leading-tight">Travancore</p>
-              <p className="text-xs uppercase tracking-widest text-sidebar-foreground/60">Ayurveda LMS</p>
-            </div>
+            <BrandLogo onDark className="h-12" />
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 py-4">
