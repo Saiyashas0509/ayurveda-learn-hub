@@ -228,17 +228,25 @@ export const listMyCertificates = createServerFn({ method: "GET" })
   });
 
 // Public: verify a certificate by code (no auth required).
+// Anonymous users have no direct read access to certificates; this server
+// function projects only non-sensitive verification fields (no score, no
+// expiry, no user_id) using the service-role client.
 export const verifyCertificate = createServerFn({ method: "GET" })
   .inputValidator((data: { code: string }) => z.object({ code: z.string().trim().max(64) }).parse(data))
   .handler(async ({ data }) => {
-    const { createClient } = await import("@supabase/supabase-js");
-    const client = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
-      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
-    });
-    const { data: cert } = await client
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row } = await supabaseAdmin
       .from("certificates")
-      .select("cert_code,issued_at,score_percent,courses(title),employees!certificates_user_id_fkey(full_name,centers(name))")
+      .select("cert_code,issued_at,courses(title),employees!certificates_user_id_fkey(full_name,centers(name))")
       .eq("cert_code", data.code)
       .maybeSingle();
-    return { cert };
+    if (!row) return { cert: null };
+    return {
+      cert: {
+        cert_code: row.cert_code,
+        issued_at: row.issued_at,
+        courses: row.courses,
+        employees: row.employees,
+      },
+    };
   });
