@@ -49,6 +49,12 @@ function Landing() {
             >
               First-time setup
             </Link>
+            <Link
+              to="/demo"
+              className="rounded-md border border-gold/60 bg-gold/10 px-5 py-2.5 text-sm font-medium text-gold hover:bg-gold/20"
+            >
+              Preview the platform →
+            </Link>
           </div>
         </div>
       </section>
