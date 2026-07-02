@@ -16,7 +16,7 @@ function Landing() {
   return (
     <div className="min-h-screen bg-background">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <BrandLogo className="h-16" />
+        <BrandLogo className="h-16" imgClassName="scale-[30]" />
         <Link
           to="/auth"
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
