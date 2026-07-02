@@ -16,6 +16,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DemoIndexRouteImport } from './routes/demo.index'
 import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
+import { Route as DemoCatalogRouteImport } from './routes/demo.catalog'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCertificatesRouteImport } from './routes/_authenticated/certificates'
@@ -61,6 +62,11 @@ const VerifyCodeRoute = VerifyCodeRouteImport.update({
   id: '/verify/$code',
   path: '/verify/$code',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DemoCatalogRoute = DemoCatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
+  getParentRoute: () => DemoRoute,
 } as any)
 const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   id: '/profile',
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/certificates': typeof AuthenticatedCertificatesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/demo/catalog': typeof DemoCatalogRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/demo/': typeof DemoIndexRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/certificates': typeof AuthenticatedCertificatesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/demo/catalog': typeof DemoCatalogRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/demo': typeof DemoIndexRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/_authenticated/certificates': typeof AuthenticatedCertificatesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/demo/catalog': typeof DemoCatalogRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/demo/': typeof DemoIndexRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/certificates'
     | '/dashboard'
     | '/profile'
+    | '/demo/catalog'
     | '/verify/$code'
     | '/demo/'
     | '/admin/announcements'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/certificates'
     | '/dashboard'
     | '/profile'
+    | '/demo/catalog'
     | '/verify/$code'
     | '/demo'
     | '/admin/announcements'
@@ -230,6 +241,7 @@ export interface FileRouteTypes {
     | '/_authenticated/certificates'
     | '/_authenticated/dashboard'
     | '/_authenticated/profile'
+    | '/demo/catalog'
     | '/verify/$code'
     | '/demo/'
     | '/_authenticated/admin/announcements'
@@ -300,6 +312,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/verify/$code'
       preLoaderRoute: typeof VerifyCodeRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/demo/catalog': {
+      id: '/demo/catalog'
+      path: '/catalog'
+      fullPath: '/demo/catalog'
+      preLoaderRoute: typeof DemoCatalogRouteImport
+      parentRoute: typeof DemoRoute
     }
     '/_authenticated/profile': {
       id: '/_authenticated/profile'
@@ -413,10 +432,12 @@ const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
 interface DemoRouteChildren {
+  DemoCatalogRoute: typeof DemoCatalogRoute
   DemoIndexRoute: typeof DemoIndexRoute
 }
 
 const DemoRouteChildren: DemoRouteChildren = {
+  DemoCatalogRoute: DemoCatalogRoute,
   DemoIndexRoute: DemoIndexRoute,
 }
 
