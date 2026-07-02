@@ -56,7 +56,6 @@ function VerifyPage() {
                 <Field label="Center" value={cert.employees?.centers?.name ?? "—"} />
                 <Field label="Issued" value={new Date(cert.issued_at).toLocaleDateString()} />
               </dl>
-              </dl>
             </div>
           ) : (
             <div>
