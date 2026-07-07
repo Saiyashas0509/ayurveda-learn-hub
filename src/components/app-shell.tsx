@@ -1,36 +1,13 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
-import {
-  LayoutDashboard,
-  BookOpen,
-  Award,
-  User,
-  Shield,
-  Bell,
-  LogOut,
-  Menu,
-  X,
-} from "lucide-react";
+import { LogOut, Menu, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, signOutFully, type AppRole } from "@/lib/auth-helpers";
 import { BrandLogo } from "@/components/brand-logo";
-
-const learnerNav = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/catalog", label: "Course Catalog", icon: BookOpen },
-  { to: "/certificates", label: "Certificates", icon: Award },
-  { to: "/profile", label: "My Profile", icon: User },
-];
-
-const adminNav = [
-  { to: "/admin", label: "Admin Overview", icon: Shield },
-  { to: "/admin/users", label: "Users", icon: User },
-  { to: "/admin/announcements", label: "Announcements", icon: Bell },
-  { to: "/admin/audit-logs", label: "Audit Logs", icon: Shield },
-];
+import { ROLE_VIEWS, pickPrimaryRole } from "@/config/roleViews";
 
 const IDLE_MS = 30 * 60 * 1000; // 30 min auto logout
 
@@ -65,7 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (!u.user) return null;
       const { data: emp } = await supabase
         .from("employees")
-        .select("full_name,email,designation,centers(name)")
+        .select("full_name,email,designation,primary_role,centers(name),organizations(name,org_type)")
         .eq("id", u.user.id)
         .maybeSingle();
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
@@ -73,14 +50,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     },
   });
 
-  const isAdmin = (me?.roles ?? []).some((r) => r === "super_admin" || r === "hr_admin");
+  const roles = me?.roles ?? [];
+  const primaryRole = (me?.employee?.primary_role as AppRole | null) ?? (roles.length ? pickPrimaryRole(roles) : "student");
+  const view = ROLE_VIEWS[primaryRole];
   const initials = (me?.employee?.full_name ?? "T A")
     .split(" ")
     .map((s) => s[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
-  const roleLabel = me?.roles?.[0] ? ROLE_LABELS[me.roles[0]] : "Employee";
+  const roleLabel = ROLE_LABELS[primaryRole];
+  const orgName = (me?.employee as { organizations?: { name?: string } } | null | undefined)?.organizations?.name;
 
   return (
     <div className="min-h-screen bg-background">
@@ -97,29 +77,19 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 py-4">
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">Learning</p>
-            <div className="space-y-1">
-              {learnerNav.map((item) => (
-                <SideLink key={item.to} to={item.to} active={location.pathname.startsWith(item.to)} onClick={() => setOpen(false)}>
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </SideLink>
-              ))}
-            </div>
-
-            {isAdmin && (
-              <>
-                <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">Administration</p>
+            {view.nav.map((group, idx) => (
+              <div key={group.label} className={idx > 0 ? "mt-6" : ""}>
+                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">{group.label}</p>
                 <div className="space-y-1">
-                  {adminNav.map((item) => (
+                  {group.items.map((item) => (
                     <SideLink key={item.to} to={item.to} active={location.pathname === item.to || location.pathname.startsWith(item.to + "/")} onClick={() => setOpen(false)}>
                       <item.icon className="h-4 w-4" />
                       {item.label}
                     </SideLink>
                   ))}
                 </div>
-              </>
-            )}
+              </div>
+            ))}
           </nav>
 
           <div className="border-t border-sidebar-border/60 px-4 py-4">
@@ -159,7 +129,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Button>
           <div className="flex-1">
             <p className="text-xs text-muted-foreground">
-              {me?.employee?.centers?.name ? `${me.employee.centers.name} · ${roleLabel}` : roleLabel}
+              {orgName ? `${orgName} · ${roleLabel}` : roleLabel}
             </p>
           </div>
           <Link

@@ -7,9 +7,20 @@ import { AppShell } from "@/components/app-shell";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
+    // Gate: force onboarding until an employees row with onboarding_completed_at exists.
+    if (!location.pathname.startsWith("/onboarding")) {
+      const { data: emp } = await supabase
+        .from("employees")
+        .select("onboarding_completed_at")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      if (!emp?.onboarding_completed_at) {
+        throw redirect({ to: "/onboarding" });
+      }
+    }
     return { user: data.user };
   },
   component: () => (
