@@ -32,6 +32,7 @@ import { Route as AuthenticatedCoursesSlugRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminAuditLogsRouteImport } from './routes/_authenticated/admin/audit-logs'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
+import { Route as AuthenticatedAdminCoursesIndexRouteImport } from './routes/_authenticated/admin/courses.index'
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -152,6 +153,12 @@ const AuthenticatedAdminAnnouncementsRoute =
     path: '/admin/announcements',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminCoursesIndexRoute =
+  AuthenticatedAdminCoursesIndexRouteImport.update({
+    id: '/admin/courses/',
+    path: '/admin/courses/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -176,6 +183,7 @@ export interface FileRoutesByFullPath {
   '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
   '/demo/quiz/$quizId': typeof DemoQuizQuizIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/admin/courses/': typeof AuthenticatedAdminCoursesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -199,6 +207,7 @@ export interface FileRoutesByTo {
   '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
   '/demo/quiz/$quizId': typeof DemoQuizQuizIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/admin/courses': typeof AuthenticatedAdminCoursesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -225,6 +234,7 @@ export interface FileRoutesById {
   '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
   '/demo/quiz/$quizId': typeof DemoQuizQuizIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/admin/courses/': typeof AuthenticatedAdminCoursesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/demo/lessons/$lessonId'
     | '/demo/quiz/$quizId'
     | '/admin/'
+    | '/admin/courses/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/demo/lessons/$lessonId'
     | '/demo/quiz/$quizId'
     | '/admin'
+    | '/admin/courses'
   id:
     | '__root__'
     | '/'
@@ -299,6 +311,7 @@ export interface FileRouteTypes {
     | '/demo/lessons/$lessonId'
     | '/demo/quiz/$quizId'
     | '/_authenticated/admin/'
+    | '/_authenticated/admin/courses/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -473,6 +486,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnnouncementsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/courses/': {
+      id: '/_authenticated/admin/courses/'
+      path: '/admin/courses'
+      fullPath: '/admin/courses/'
+      preLoaderRoute: typeof AuthenticatedAdminCoursesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -489,6 +509,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLessonsLessonIdRoute: typeof AuthenticatedLessonsLessonIdRoute
   AuthenticatedQuizQuizIdRoute: typeof AuthenticatedQuizQuizIdRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAdminCoursesIndexRoute: typeof AuthenticatedAdminCoursesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -504,6 +525,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLessonsLessonIdRoute: AuthenticatedLessonsLessonIdRoute,
   AuthenticatedQuizQuizIdRoute: AuthenticatedQuizQuizIdRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedAdminCoursesIndexRoute: AuthenticatedAdminCoursesIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
