@@ -11,7 +11,7 @@ async function assertFaculty(userId: string) {
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
-    .in("role", FACULTY_ROLES as unknown as string[]);
+    .in("role", [...FACULTY_ROLES]);
   if (!data || data.length === 0) throw new Error("Forbidden: faculty or admin role required");
 }
 
@@ -205,10 +205,19 @@ export const updateLesson = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertFaculty(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch: Record<string, unknown> = {};
-    for (const k of ["title","description","video_url","duration_seconds","preview_allowed","key_notes","transcript","resources"] as const) {
-      if (data[k] !== undefined) patch[k] = data[k];
-    }
+    const patch: {
+      title?: string; description?: string; video_url?: string | null;
+      duration_seconds?: number; preview_allowed?: boolean;
+      key_notes?: string; transcript?: string; resources?: unknown;
+    } = {};
+    if (data.title !== undefined) patch.title = data.title;
+    if (data.description !== undefined) patch.description = data.description;
+    if (data.video_url !== undefined) patch.video_url = data.video_url;
+    if (data.duration_seconds !== undefined) patch.duration_seconds = data.duration_seconds;
+    if (data.preview_allowed !== undefined) patch.preview_allowed = data.preview_allowed;
+    if (data.key_notes !== undefined) patch.key_notes = data.key_notes;
+    if (data.transcript !== undefined) patch.transcript = data.transcript;
+    if (data.resources !== undefined) patch.resources = data.resources;
     await supabaseAdmin.from("lessons").update(patch).eq("id", data.id);
     return { ok: true };
   });
