@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -165,11 +165,8 @@ function Structure({ courseId, modules, lessons, quizzes, onChanged }: {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const [order, setOrder] = useState(modules.map((m) => m.id));
-  // Sync order when data refetches
-  if (order.length !== modules.length || order.some((id, i) => modules.find((m) => m.id === id) === undefined)) {
-    // reset if server changed
-    setOrder(modules.map((m) => m.id));
-  }
+  const modKey = modules.map((m) => m.id).join("|");
+  useEffect(() => { setOrder(modules.map((m) => m.id)); }, [modKey]);
 
   const addMut = useMutation({
     mutationFn: () => addModule({ data: { courseId, title: newTitle } }),
@@ -260,9 +257,8 @@ function ModuleCard({ courseId, module: mod, lessons, quizzes, onChanged, onEdit
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   const [order, setOrder] = useState(lessons.map((l) => l.id));
-  if (order.length !== lessons.length || order.some((id) => !lessons.find((l) => l.id === id))) {
-    setOrder(lessons.map((l) => l.id));
-  }
+  const lessonKey = lessons.map((l) => l.id).join("|");
+  useEffect(() => { setOrder(lessons.map((l) => l.id)); }, [lessonKey]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const handleDrag = (e: DragEndEvent) => {
     if (!e.over || e.active.id === e.over.id) return;
