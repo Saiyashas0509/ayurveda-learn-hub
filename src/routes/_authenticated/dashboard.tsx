@@ -5,6 +5,7 @@ import { getMyDashboard } from "@/lib/learning.functions";
 import { ROLE_LABELS, type AppRole } from "@/lib/auth-helpers";
 import { Progress } from "@/components/ui/progress";
 import { BookOpen, Award, CheckCircle2, Clock, Megaphone, ArrowRight } from "lucide-react";
+import { ROLE_VIEWS, STAT_META, pickPrimaryRole, type StatKey } from "@/config/roleViews";
 
 function dashboardQuery(fn: () => Promise<Awaited<ReturnType<typeof getMyDashboard>>>) {
   return queryOptions({
@@ -24,8 +25,32 @@ function Dashboard() {
   const total = data.completedCount + data.pendingCount;
   const pct = total > 0 ? Math.round((data.completedCount / total) * 100) : 0;
   const firstName = data.employee?.full_name?.split(" ")[0] ?? "there";
-  const roleLabel = data.roles[0] ? ROLE_LABELS[data.roles[0] as AppRole] : "Employee";
+  const primaryRole = (data.employee as { primary_role?: AppRole } | null | undefined)?.primary_role
+    ?? (data.roles.length ? pickPrimaryRole(data.roles as AppRole[]) : "student");
+  const roleLabel = ROLE_LABELS[primaryRole];
   const centerName = (data.employee as { centers?: { name?: string } } | null | undefined)?.centers?.name ?? "—";
+  const view = ROLE_VIEWS[primaryRole];
+
+  const statValues: Record<StatKey, number> = {
+    completedLessons: data.completedCount,
+    inProgress: data.pendingCount,
+    certificates: data.certificates.length,
+    availableCourses: data.courses.length,
+    orgMembers: (data as { orgMembers?: number }).orgMembers ?? 0,
+    orgCourses: data.courses.length,
+    orgCompletions: (data as { orgCompletions?: number }).orgCompletions ?? 0,
+    pendingReviews: (data as { pendingReviews?: number }).pendingReviews ?? 0,
+  };
+  const statIcons: Record<StatKey, React.ElementType> = {
+    completedLessons: CheckCircle2,
+    inProgress: Clock,
+    certificates: Award,
+    availableCourses: BookOpen,
+    orgMembers: BookOpen,
+    orgCourses: BookOpen,
+    orgCompletions: CheckCircle2,
+    pendingReviews: Clock,
+  };
 
   return (
     <div className="space-y-8">
@@ -59,10 +84,15 @@ function Dashboard() {
 
       {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={CheckCircle2} label="Completed lessons" value={data.completedCount} tone="success" />
-        <StatCard icon={Clock} label="In progress" value={data.pendingCount} tone="primary" />
-        <StatCard icon={Award} label="Certificates" value={data.certificates.length} tone="gold" />
-        <StatCard icon={BookOpen} label="Available courses" value={data.courses.length} tone="muted" />
+        {view.stats.map((key) => (
+          <StatCard
+            key={key}
+            icon={statIcons[key]}
+            label={STAT_META[key].label}
+            value={statValues[key]}
+            tone={STAT_META[key].tone}
+          />
+        ))}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
