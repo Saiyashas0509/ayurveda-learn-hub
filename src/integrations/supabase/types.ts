@@ -41,6 +41,128 @@ export type Database = {
         }
         Relationships: []
       }
+      assignment_submissions: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          feedback: string | null
+          file_kind: string | null
+          file_name: string | null
+          file_url: string | null
+          grade: number | null
+          graded_at: string | null
+          graded_by: string | null
+          id: string
+          is_late: boolean
+          status: string
+          submitted_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          feedback?: string | null
+          file_kind?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          grade?: number | null
+          graded_at?: string | null
+          graded_by?: string | null
+          id?: string
+          is_late?: boolean
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          feedback?: string | null
+          file_kind?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          grade?: number | null
+          graded_at?: string | null
+          graded_by?: string | null
+          id?: string
+          is_late?: boolean
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_submissions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignments: {
+        Row: {
+          allow_late: boolean
+          course_id: string
+          created_at: string
+          created_by: string | null
+          due_at: string | null
+          id: string
+          instructions: string | null
+          lesson_id: string | null
+          max_score: number
+          rubric: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          allow_late?: boolean
+          course_id: string
+          created_at?: string
+          created_by?: string | null
+          due_at?: string | null
+          id?: string
+          instructions?: string | null
+          lesson_id?: string | null
+          max_score?: number
+          rubric?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          allow_late?: boolean
+          course_id?: string
+          created_at?: string
+          created_by?: string | null
+          due_at?: string | null
+          id?: string
+          instructions?: string | null
+          lesson_id?: string | null
+          max_score?: number
+          rubric?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignments_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attempt_answers: {
         Row: {
           attempt_id: string
@@ -226,6 +348,44 @@ export type Database = {
         }
         Relationships: []
       }
+      course_modules: {
+        Row: {
+          course_id: string
+          created_at: string
+          description: string | null
+          id: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_modules_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           category_id: string | null
@@ -236,10 +396,14 @@ export type Database = {
           duration_minutes: number | null
           id: string
           is_published: boolean
+          last_published_at: string | null
+          preview_allowed: boolean
           slug: string
+          status: string
           target_roles: Database["public"]["Enums"]["app_role"][] | null
           title: string
           updated_at: string
+          version: number
         }
         Insert: {
           category_id?: string | null
@@ -250,10 +414,14 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           is_published?: boolean
+          last_published_at?: string | null
+          preview_allowed?: boolean
           slug: string
+          status?: string
           target_roles?: Database["public"]["Enums"]["app_role"][] | null
           title: string
           updated_at?: string
+          version?: number
         }
         Update: {
           category_id?: string | null
@@ -264,10 +432,14 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           is_published?: boolean
+          last_published_at?: string | null
+          preview_allowed?: boolean
           slug?: string
+          status?: string
           target_roles?: Database["public"]["Enums"]["app_role"][] | null
           title?: string
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -387,10 +559,13 @@ export type Database = {
         Row: {
           course_id: string
           created_at: string
+          description: string | null
           duration_seconds: number | null
           id: string
           key_notes: string | null
+          module_id: string | null
           pdf_url: string | null
+          preview_allowed: boolean
           resources: Json
           sort_order: number
           title: string
@@ -401,10 +576,13 @@ export type Database = {
         Insert: {
           course_id: string
           created_at?: string
+          description?: string | null
           duration_seconds?: number | null
           id?: string
           key_notes?: string | null
+          module_id?: string | null
           pdf_url?: string | null
+          preview_allowed?: boolean
           resources?: Json
           sort_order?: number
           title: string
@@ -415,10 +593,13 @@ export type Database = {
         Update: {
           course_id?: string
           created_at?: string
+          description?: string | null
           duration_seconds?: number | null
           id?: string
           key_notes?: string | null
+          module_id?: string | null
           pdf_url?: string | null
+          preview_allowed?: boolean
           resources?: Json
           sort_order?: number
           title?: string
@@ -432,6 +613,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lessons_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "course_modules"
             referencedColumns: ["id"]
           },
         ]
@@ -762,7 +950,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      publish_course: { Args: { _course_id: string }; Returns: undefined }
+      unpublish_course: { Args: { _course_id: string }; Returns: undefined }
     }
     Enums: {
       app_role:
