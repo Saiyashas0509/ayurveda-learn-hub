@@ -218,7 +218,7 @@ export const updateLesson = createServerFn({ method: "POST" })
     if (data.key_notes !== undefined) patch.key_notes = data.key_notes;
     if (data.transcript !== undefined) patch.transcript = data.transcript;
     if (data.resources !== undefined) patch.resources = data.resources;
-    await supabaseAdmin.from("lessons").update(patch).eq("id", data.id);
+    await supabaseAdmin.from("lessons").update(patch as never).eq("id", data.id);
     return { ok: true };
   });
 
