@@ -46,7 +46,7 @@ function Page() {
 
       <div className="flex gap-2">
         {(["upcoming", "past", "all"] as const).map((s) => (
-          <Link key={s} to="/live" search={(prev) => ({ ...prev, scope: s })}
+          <Link key={s} to="/live" search={(prev: { scope?: string; courseId?: string }) => ({ ...prev, scope: s })}
             className={`rounded-full px-3 py-1 text-xs font-medium ${scope === s ? "bg-primary text-primary-foreground" : "border border-border"}`}>
             {s[0].toUpperCase() + s.slice(1)}
           </Link>
