@@ -451,6 +451,134 @@ export type Database = {
           },
         ]
       }
+      discussion_likes: {
+        Row: {
+          created_at: string
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          target_id?: string
+          target_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      discussion_replies: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          is_faculty_answer: boolean
+          like_count: number
+          parent_reply_id: string | null
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          is_faculty_answer?: boolean
+          like_count?: number
+          parent_reply_id?: string | null
+          thread_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          is_faculty_answer?: boolean
+          like_count?: number
+          parent_reply_id?: string | null
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discussion_replies_parent_reply_id_fkey"
+            columns: ["parent_reply_id"]
+            isOneToOne: false
+            referencedRelation: "discussion_replies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discussion_replies_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "discussion_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discussion_threads: {
+        Row: {
+          author_id: string
+          body: string
+          course_id: string
+          created_at: string
+          id: string
+          is_announcement: boolean
+          is_pinned: boolean
+          last_activity_at: string
+          like_count: number
+          reply_count: number
+          search_tsv: unknown
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body?: string
+          course_id: string
+          created_at?: string
+          id?: string
+          is_announcement?: boolean
+          is_pinned?: boolean
+          last_activity_at?: string
+          like_count?: number
+          reply_count?: number
+          search_tsv?: unknown
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          is_announcement?: boolean
+          is_pinned?: boolean
+          last_activity_at?: string
+          like_count?: number
+          reply_count?: number
+          search_tsv?: unknown
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discussion_threads_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           center_id: string | null
@@ -624,6 +752,187 @@ export type Database = {
           },
         ]
       }
+      live_class_attendance: {
+        Row: {
+          joined_at: string
+          left_at: string | null
+          live_class_id: string
+          user_id: string
+        }
+        Insert: {
+          joined_at?: string
+          left_at?: string | null
+          live_class_id: string
+          user_id: string
+        }
+        Update: {
+          joined_at?: string
+          left_at?: string | null
+          live_class_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_class_attendance_live_class_id_fkey"
+            columns: ["live_class_id"]
+            isOneToOne: false
+            referencedRelation: "live_classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_class_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          live_class_id: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          kind?: string
+          live_class_id: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          live_class_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_class_messages_live_class_id_fkey"
+            columns: ["live_class_id"]
+            isOneToOne: false
+            referencedRelation: "live_classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_class_poll_votes: {
+        Row: {
+          created_at: string
+          option_index: number
+          poll_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          option_index: number
+          poll_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          option_index?: number
+          poll_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_class_poll_votes_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "live_class_polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_class_polls: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          live_class_id: string
+          options: Json
+          question: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          live_class_id: string
+          options: Json
+          question: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          live_class_id?: string
+          options?: Json
+          question?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_class_polls_live_class_id_fkey"
+            columns: ["live_class_id"]
+            isOneToOne: false
+            referencedRelation: "live_classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_classes: {
+        Row: {
+          course_id: string
+          created_at: string
+          description: string | null
+          ends_at: string | null
+          host_id: string
+          id: string
+          meeting_url: string
+          provider: string
+          starts_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          host_id: string
+          id?: string
+          meeting_url: string
+          provider?: string
+          starts_at: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          host_id?: string
+          id?: string
+          meeting_url?: string
+          provider?: string
+          starts_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_classes_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       login_attempts: {
         Row: {
           created_at: string
@@ -648,29 +957,68 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_preferences: {
+        Row: {
+          created_at: string
+          email_enabled: boolean
+          in_app: Json
+          sms_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_enabled?: boolean
+          in_app?: Json
+          sms_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_enabled?: boolean
+          in_app?: Json
+          sms_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string | null
           created_at: string
+          data: Json
           id: string
+          is_read: boolean
+          link: string | null
           read_at: string | null
           title: string
+          type: string
           user_id: string
         }
         Insert: {
           body?: string | null
           created_at?: string
+          data?: Json
           id?: string
+          is_read?: boolean
+          link?: string | null
           read_at?: string | null
           title: string
+          type?: string
           user_id: string
         }
         Update: {
           body?: string | null
           created_at?: string
+          data?: Json
           id?: string
+          is_read?: boolean
+          link?: string | null
           read_at?: string | null
           title?: string
+          type?: string
           user_id?: string
         }
         Relationships: []
@@ -950,8 +1298,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      enqueue_notification: {
+        Args: {
+          _body: string
+          _data: Json
+          _link: string
+          _title: string
+          _type: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
+      is_faculty_or_admin: { Args: { _user_id: string }; Returns: boolean }
       publish_course: { Args: { _course_id: string }; Returns: undefined }
       unpublish_course: { Args: { _course_id: string }; Returns: undefined }
+      user_enrolled_in_course: {
+        Args: { _course_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role:
