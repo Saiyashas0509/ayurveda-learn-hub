@@ -9,7 +9,7 @@ export const getMyDashboard = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
 
     const [employee, roles, progress, certs, announcements, courses] = await Promise.all([
-      supabase.from("employees").select("full_name,email,designation,center_id,centers(name)").eq("id", userId).maybeSingle(),
+      supabase.from("employees").select("full_name,email,designation,center_id,primary_role,organization_id,centers(name),organizations(name,org_type)").eq("id", userId).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", userId),
       supabase.from("lesson_progress").select("id,completed_at,lesson_id,lessons(course_id,title)").eq("user_id", userId),
       supabase.from("certificates").select("id,cert_code,issued_at,courses(title)").eq("user_id", userId).order("issued_at", { ascending: false }).limit(5),
