@@ -95,6 +95,10 @@ export const requestLoginOtp = createServerFn({ method: "POST" })
       if (pending) {
         allowed = true;
         isNewSignup = true;
+      } else {
+        // Allow self-signup — onboarding wizard will restrict role to self-signup roles.
+        allowed = true;
+        isNewSignup = true;
       }
     }
 
