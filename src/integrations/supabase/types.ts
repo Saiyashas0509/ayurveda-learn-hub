@@ -122,30 +122,44 @@ export type Database = {
       }
       centers: {
         Row: {
+          center_type: Database["public"]["Enums"]["center_type"]
           city: string | null
           code: string
           created_at: string
           id: string
           name: string
+          organization_id: string | null
           region: string | null
         }
         Insert: {
+          center_type?: Database["public"]["Enums"]["center_type"]
           city?: string | null
           code: string
           created_at?: string
           id?: string
           name: string
+          organization_id?: string | null
           region?: string | null
         }
         Update: {
+          center_type?: Database["public"]["Enums"]["center_type"]
           city?: string | null
           code?: string
           created_at?: string
           id?: string
           name?: string
+          organization_id?: string | null
           region?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "centers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       certificates: {
         Row: {
@@ -275,7 +289,11 @@ export type Database = {
           full_name: string
           id: string
           joined_at: string | null
+          learning_interests: string[]
+          onboarding_completed_at: string | null
+          organization_id: string | null
           phone: string | null
+          primary_role: Database["public"]["Enums"]["app_role"] | null
           status: Database["public"]["Enums"]["employee_status"]
           updated_at: string
         }
@@ -288,7 +306,11 @@ export type Database = {
           full_name: string
           id: string
           joined_at?: string | null
+          learning_interests?: string[]
+          onboarding_completed_at?: string | null
+          organization_id?: string | null
           phone?: string | null
+          primary_role?: Database["public"]["Enums"]["app_role"] | null
           status?: Database["public"]["Enums"]["employee_status"]
           updated_at?: string
         }
@@ -301,7 +323,11 @@ export type Database = {
           full_name?: string
           id?: string
           joined_at?: string | null
+          learning_interests?: string[]
+          onboarding_completed_at?: string | null
+          organization_id?: string | null
           phone?: string | null
+          primary_role?: Database["public"]["Enums"]["app_role"] | null
           status?: Database["public"]["Enums"]["employee_status"]
           updated_at?: string
         }
@@ -311,6 +337,13 @@ export type Database = {
             columns: ["center_id"]
             isOneToOne: false
             referencedRelation: "centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -454,23 +487,95 @@ export type Database = {
         }
         Relationships: []
       }
-      pending_bootstrap: {
+      organizations: {
         Row: {
+          contact_email: string | null
           created_at: string
-          email: string
-          full_name: string
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          org_type: Database["public"]["Enums"]["org_type"]
+          settings: Json
+          slug: string
+          updated_at: string
         }
         Insert: {
+          contact_email?: string | null
           created_at?: string
-          email: string
-          full_name: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          org_type?: Database["public"]["Enums"]["org_type"]
+          settings?: Json
+          slug: string
+          updated_at?: string
         }
         Update: {
+          contact_email?: string | null
           created_at?: string
-          email?: string
-          full_name?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          org_type?: Database["public"]["Enums"]["org_type"]
+          settings?: Json
+          slug?: string
+          updated_at?: string
         }
         Relationships: []
+      }
+      pending_bootstrap: {
+        Row: {
+          center_id: string | null
+          created_at: string
+          designation: string | null
+          email: string
+          full_name: string
+          learning_interests: string[]
+          organization_id: string | null
+          phone: string | null
+          requested_role: Database["public"]["Enums"]["app_role"] | null
+        }
+        Insert: {
+          center_id?: string | null
+          created_at?: string
+          designation?: string | null
+          email: string
+          full_name: string
+          learning_interests?: string[]
+          organization_id?: string | null
+          phone?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
+        }
+        Update: {
+          center_id?: string | null
+          created_at?: string
+          designation?: string | null
+          email?: string
+          full_name?: string
+          learning_interests?: string[]
+          organization_id?: string | null
+          phone?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_bootstrap_center_id_fkey"
+            columns: ["center_id"]
+            isOneToOne: false
+            referencedRelation: "centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_bootstrap_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       question_options: {
         Row: {
@@ -669,7 +774,20 @@ export type Database = {
         | "therapist"
         | "trainer"
         | "auditor"
+        | "student"
+        | "doctor"
+        | "franchise_owner"
+        | "corporate_employee"
+        | "hospital_staff"
+        | "faculty"
+        | "org_admin"
+      center_type:
+        | "clinic"
+        | "franchise_branch"
+        | "hospital_ward"
+        | "training_campus"
       employee_status: "active" | "disabled" | "pending"
+      org_type: "hospital" | "franchise" | "corporate" | "academy" | "internal"
       question_type: "mcq" | "true_false" | "image"
     }
     CompositeTypes: {
@@ -807,8 +925,22 @@ export const Constants = {
         "therapist",
         "trainer",
         "auditor",
+        "student",
+        "doctor",
+        "franchise_owner",
+        "corporate_employee",
+        "hospital_staff",
+        "faculty",
+        "org_admin",
+      ],
+      center_type: [
+        "clinic",
+        "franchise_branch",
+        "hospital_ward",
+        "training_campus",
       ],
       employee_status: ["active", "disabled", "pending"],
+      org_type: ["hospital", "franchise", "corporate", "academy", "internal"],
       question_type: ["mcq", "true_false", "image"],
     },
   },
