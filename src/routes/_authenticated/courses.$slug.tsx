@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { getCourse } from "@/lib/learning.functions";
-import { CheckCircle2, Circle, Clock, PlayCircle } from "lucide-react";
+import { CheckCircle2, Circle, Clock, PlayCircle, MessagesSquare, Video } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/courses/$slug")({
   component: CoursePage,
@@ -35,6 +35,14 @@ function CoursePage() {
           <span className="rounded-full bg-gold text-gold-foreground px-3 py-1 font-medium">
             {pct}% complete
           </span>
+        </div>
+        <div className="mt-5 flex flex-wrap gap-3 text-sm">
+          <Link to="/discussions/$courseId" params={{ courseId: data.course.id }} className="inline-flex items-center gap-2 rounded-md bg-primary-foreground/10 px-3 py-1.5 hover:bg-primary-foreground/20">
+            <MessagesSquare className="h-4 w-4" /> Discussions
+          </Link>
+          <Link to="/live" search={{ courseId: data.course.id }} className="inline-flex items-center gap-2 rounded-md bg-primary-foreground/10 px-3 py-1.5 hover:bg-primary-foreground/20">
+            <Video className="h-4 w-4" /> Live Classes
+          </Link>
         </div>
       </div>
 

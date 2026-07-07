@@ -13,6 +13,9 @@ import {
   Wrench,
   ClipboardCheck,
   FileText,
+  Video,
+  CalendarDays,
+  MessagesSquare,
 } from "lucide-react";
 
 export type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
@@ -31,6 +34,9 @@ const learnerGroup: NavGroup = {
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/catalog", label: "Course Catalog", icon: BookOpen },
     { to: "/assignments", label: "My Assignments", icon: FileText },
+    { to: "/live", label: "Live Classes", icon: Video },
+    { to: "/calendar", label: "Calendar", icon: CalendarDays },
+    { to: "/notifications", label: "Notifications", icon: Bell },
     { to: "/certificates", label: "Certificates", icon: Award },
     { to: "/profile", label: "My Profile", icon: User },
   ],
@@ -41,6 +47,7 @@ const facultyGroup: NavGroup = {
   items: [
     { to: "/admin/courses", label: "Course Builder", icon: Wrench },
     { to: "/admin/submissions", label: "Grading", icon: ClipboardCheck },
+    { to: "/admin/live", label: "Schedule Class", icon: Video },
     { to: "/catalog", label: "My Courses", icon: BookOpen },
   ],
 };
@@ -61,6 +68,7 @@ const platformAdminGroup: NavGroup = {
     { to: "/admin/users", label: "Users", icon: User },
     { to: "/admin/courses", label: "Course Builder", icon: Wrench },
     { to: "/admin/submissions", label: "Grading", icon: ClipboardCheck },
+    { to: "/admin/live", label: "Schedule Class", icon: Video },
     { to: "/admin/announcements", label: "Announcements", icon: Bell },
     { to: "/admin/audit-logs", label: "Audit Logs", icon: ClipboardList },
   ],
@@ -114,4 +122,4 @@ export function pickPrimaryRole(roles: AppRole[]): AppRole {
   return "student";
 }
 
-export const _icon = GraduationCap; // keep icon import stable
+export const _icon: unknown = [GraduationCap, MessagesSquare]; // keep icon imports stable

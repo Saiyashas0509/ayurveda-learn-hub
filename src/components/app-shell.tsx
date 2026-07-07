@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, signOutFully, type AppRole } from "@/lib/auth-helpers";
 import { BrandLogo } from "@/components/brand-logo";
 import { ROLE_VIEWS, pickPrimaryRole } from "@/config/roleViews";
+import { NotificationBell } from "@/components/notification-bell";
 
 const IDLE_MS = 30 * 60 * 1000; // 30 min auto logout
 
@@ -132,6 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               {orgName ? `${orgName} · ${roleLabel}` : roleLabel}
             </p>
           </div>
+          <NotificationBell />
           <Link
             to="/catalog"
             className="hidden rounded-md border border-input px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent md:inline-flex"

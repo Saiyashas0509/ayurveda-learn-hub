@@ -1,85 +1,72 @@
-## Course Builder + Assignments
+## Four features, one pass. Extends existing schema; no drops.
 
-Extend existing schema. No table drops. Faculty/admin authoring UI + student assignment submissions + grading.
+### 1. Per-course discussion forum
 
-### 1. Schema migration
+**Schema (migration):**
+- `discussion_threads`: id, course_id, author_id, title, body, is_pinned, is_announcement, reply_count, like_count, last_activity_at, search_tsv (generated).
+- `discussion_replies`: id, thread_id, parent_reply_id (nullable, self-ref for nesting), author_id, body, like_count, is_faculty_answer bool.
+- `discussion_likes`: (user_id, target_type 'thread'|'reply', target_id) — unique composite.
+- GIN index on `search_tsv`; trigger to maintain `reply_count`, `last_activity_at`, and `is_faculty_answer` (true when author has faculty/admin role).
+- RLS: SELECT allowed when the user is enrolled in the course (existing `lesson_progress` or an `enrollments` link — reuse whichever exists; fall back to `has_role` faculty/admin OR EXISTS lesson_progress row for that course). Faculty/admin see all threads in courses they authored/teach. INSERT: authenticated + enrolled/faculty. UPDATE/DELETE: author or faculty. Pin/announcement flags: faculty only (check via trigger).
 
-**Extend `courses`:**
-- `status text` ('draft' | 'published', default 'draft') — mirrors `is_published` for clarity
-- `last_published_at timestamptz`
-- `version int default 1`
-- `preview_allowed boolean default false`
+**Server fns** (`src/lib/discussions.functions.ts`, `requireSupabaseAuth`):
+`listThreads({courseId, q?})`, `getThread({id})`, `createThread`, `createReply`, `toggleLike({targetType,targetId})`, `pinThread`, `deleteThread/Reply`, `searchThreads({courseId,q})` using `websearch_to_tsquery`.
 
-**New `course_modules`:** `id, course_id, title, description, sort_order, created_at, updated_at`. Cascade on course.
+**UI:** `_authenticated/courses.$slug/discussions.tsx` (list + search + New Thread), `.../$threadId.tsx` (thread view + nested replies + like buttons + pin toggle for faculty + faculty-answer badge). Add "Discussion" tab into existing course view.
 
-**Extend `lessons`:** add `module_id uuid → course_modules(id)`, `description text`, `preview_allowed boolean default false`. Keep existing `course_id` for backward compat; backfill via trigger.
+### 2. Live Classes
 
-**Extend `lessons.resources` jsonb** (already exists) — use for attached PDFs/PPTs: `[{ id, name, url, kind: 'pdf'|'ppt'|'other', size }]`.
+**Schema:**
+- `live_classes`: id, course_id, title, description, meeting_url, provider ('zoom'|'meet'|'teams'|'other'), starts_at, ends_at, host_id, created_at.
+- `live_class_attendance`: (live_class_id, user_id) unique, joined_at, left_at nullable.
+- `live_class_messages`: id, live_class_id, user_id, body, kind ('chat'|'raise_hand'|'system'), created_at.
+- `live_class_polls`: id, live_class_id, question, options jsonb, closed_at.
+- `live_class_poll_votes`: (poll_id, user_id) unique, option_index.
+- Realtime enabled on `live_class_messages`, `live_class_poll_votes`.
+- RLS: same enrolled-or-faculty rule; polls create/close = host/faculty.
 
-**New `assignments`:** `id, course_id, lesson_id (nullable), title, instructions, rubric text, due_at timestamptz, allow_late boolean default true, max_score int default 100, created_by, created_at, updated_at`.
+**Server fns** (`src/lib/live-classes.functions.ts`): `listUpcoming({courseId?})`, `scheduleClass` (faculty), `joinClass({id})` (upsert attendance, returns meeting_url), `postMessage`, `raiseHand`, `createPoll`, `votePoll`, `closePoll`.
 
-**New `assignment_submissions`:** `id, assignment_id, user_id, file_url, file_name, file_kind, submitted_at, is_late boolean, grade numeric, feedback text, graded_by, graded_at, status text ('submitted'|'graded'|'returned')`. Unique (assignment_id, user_id) — resubmission overwrites.
+**UI:** `_authenticated/live/index.tsx` (upcoming + past), `_authenticated/live/$id.tsx` (Join button → opens meeting_url in new tab + logs attendance; side panel with realtime chat, raise-hand list, active poll). Faculty scheduling form under admin.
 
-**Storage buckets:**
-- `course-media` (private) — videos, resource PDFs/PPTs; policies allow faculty/admin write, authenticated read via signed URLs
-- `assignment-submissions` (private) — student writes own path `{user_id}/{assignment_id}/*`; faculty/admin read all
+### 3. In-app notifications
 
-**RLS:**
-- `course_modules`: same as lessons (faculty/admin write; read via published course)
-- `assignments`: faculty/admin write; authenticated read via published course
-- `assignment_submissions`: student CRUD own row; faculty/admin read all + update grade/feedback
+**Schema extension:** add columns to `notifications`: `type text` ('assignment'|'result'|'live_class'|'announcement'|'discussion'|'system'), `is_read bool default false`, `read_at`, `link text` (in-app route), `data jsonb`. Backfill nullable.
+- `notification_preferences`: user_id PK, in_app jsonb (per-type booleans, default all true), email_enabled bool default false, sms_enabled bool default false.
+- Triggers to emit notifications on: new assignment, graded submission, new live class scheduled, new announcement, new reply to thread you authored.
 
-Add `faculty` check via existing `has_role` (roles: `trainer`, `faculty`, admins).
+**Server fns** (`src/lib/notifications.functions.ts`): `listMyNotifications({unreadOnly?})`, `markRead({ids})`, `markAllRead`, `getPreferences`, `updatePreferences`.
 
-**Publish helper fn:** `publish_course(course_id uuid)` — sets `is_published=true`, `status='published'`, `last_published_at=now()`, `version=version+1`.
+**UI:**
+- Bell in `app-shell` header: dropdown showing last 10 with unread badge, "Mark all read", link to full page. Poll every 30s (or realtime subscribe to inserts filtered by user_id).
+- `_authenticated/notifications.tsx`: full list, filter by type, mark read/unread, click → navigates to `link`.
+- `_authenticated/settings/notifications.tsx`: per-type in-app toggles; email/SMS toggles rendered disabled with tooltip "Requires domain verification".
 
-### 2. Server functions
+### 4. Calendar
 
-`src/lib/course-builder.functions.ts` (faculty-gated via `assertFaculty` helper checking `super_admin | hr_admin | trainer | faculty`):
-- `getCourseForEdit(courseId)` — course + modules + lessons + assignments
-- `upsertCourse`, `createModule`, `updateModule`, `deleteModule`, `reorderModules({ courseId, orderedIds })`
-- `createLesson`, `updateLesson`, `deleteLesson`, `reorderLessons({ moduleId, orderedIds })`
-- `getUploadUrl({ bucket, path })` — returns signed upload URL via `supabaseAdmin.storage.from(x).createSignedUploadUrl(path)`
-- `attachLessonResource({ lessonId, resource })`
-- `publishCourse(courseId)`, `unpublishCourse(courseId)`
-- `upsertAssignment`, `deleteAssignment`
+**No new tables.** Aggregate from `live_classes.starts_at`, `assignments.due_at`, and quiz deadlines (add optional `quizzes.due_at` if missing; else use assignment-only + live classes).
 
-`src/lib/assignments.functions.ts`:
-- `listMyAssignments()` — student view with own submission status
-- `getAssignment(id)` — student view
-- `submitAssignment({ assignmentId, fileUrl, fileName, fileKind })` — sets `is_late` server-side
-- `listSubmissionsForGrading({ assignmentId? })` — faculty view
-- `gradeSubmission({ submissionId, grade, feedback })` — writes grade + marks 'graded'
+**Server fn** `listCalendarEvents({from,to})`: unions user's enrolled-course live classes, assignments, quiz deadlines into `{id,type,title,start,end?,courseId,link}[]`.
 
-Signed download URLs for submission files (short-lived).
+**UI:** `_authenticated/calendar.tsx` — month/week toggle. Use lightweight custom grid (no heavy deps) or add `@fullcalendar/react` + `@fullcalendar/daygrid` + `@fullcalendar/timegrid`. Prefer custom to avoid bundle bloat: build month grid from date-fns (already available). Color-coded chips: live=blue, assignment=amber, quiz=violet, announcement=green.
 
-### 3. UI
+**.ics export:** server fn `exportEventIcs({type,id})` returns text with `Content-Type: text/calendar` — hand-rolled VCALENDAR/VEVENT (no dependency). Each event row has a "Download .ics" button.
 
-`src/routes/_authenticated/admin/courses.index.tsx` — list courses (faculty/admin) with New Course button, status badge, version, last published.
+### Sidebar wiring
+`roleViews.ts`: add "Discussions" (contextual via course page), "Live Classes", "Calendar", "Notifications" for all learner roles; "Schedule Class" for faculty/admin.
 
-`src/routes/_authenticated/admin/courses.$courseId.tsx` — **Course Builder**:
-- Header: title, description, category, cover, preview toggle, Draft/Published toggle + Publish button showing version and last-published timestamp
-- Body: modules list, drag-and-drop reorder (using `@dnd-kit/core` + `@dnd-kit/sortable`)
-- Each module: inline title edit, add-lesson button, sortable lessons
-- Lesson editor drawer: title, description, video upload (progress bar → storage), resource uploader (PDF/PPT multi), preview-allowed flag, quiz selector (existing quizzes for this course) or "Create quiz inline" that opens minimal quiz form
-- Assignments tab: list + add/edit assignment (title, instructions, rubric textarea, due date picker, allow-late toggle, max score)
-
-`src/routes/_authenticated/admin/submissions.tsx` — faculty grading view: filter by assignment, table of submissions with student name, submitted-at, late flag, current grade, "Grade" button opens dialog (view file link, rubric reference, grade input, feedback textarea, save).
-
-`src/routes/_authenticated/assignments.index.tsx` — student list of assignments across enrolled courses, status (not submitted / submitted / graded), due date.
-
-`src/routes/_authenticated/assignments.$assignmentId.tsx` — student view: instructions, rubric (read-only), file upload widget, submission history, grade + feedback once graded.
-
-Sidebar (roleViews.ts): add "Course Builder" and "Grading" for `faculty`, `trainer`, `hr_admin`, `super_admin`; add "My Assignments" for `student`, `corporate_employee`, `hospital_staff`, `doctor`, `therapist`.
-
-### 4. Technical notes
-
-- `@dnd-kit/*` packages installed via `bun add`
-- Video/file uploads: client requests signed upload URL from server fn, uploads directly to storage, then calls attach fn with returned path
-- File kind detection by extension; size limits enforced client-side (video 500MB, docs 25MB)
-- `is_late` computed server-side: `submitted_at > due_at`
-- Grade writes back to `assignment_submissions` — no separate "student record" table; dashboard queries this
-- Inline quiz creation reuses existing `quizzes` insert; full question editor stays in existing admin flows
+### Technical notes
+- Nested replies: single self-ref FK, render 2-level deep (deeper collapsed) to keep UI simple.
+- Search: Postgres FTS with `websearch_to_tsquery('english', q)` against `search_tsv` (generated column: `to_tsvector('english', title || ' ' || body)`).
+- Realtime for live-class chat: subscribe to `live_class_messages` filtered by `live_class_id` inside `useEffect`, cleanup on unmount.
+- Attendance logging: `joinClass` upserts row with `joined_at=now()` only if not exists; no leave-tracking beyond an optional beacon on unload.
+- Notification triggers use `SECURITY DEFINER` fns that insert into `notifications` filtered by user preference (`in_app->>type <> 'false'`).
+- All new public tables get GRANT SELECT/INSERT/UPDATE/DELETE to authenticated + GRANT ALL to service_role, plus RLS.
 
 ### Out of scope
-- Video transcoding, real-time collab editing, comment threads on submissions, plagiarism check, gradebook exports, module-level prerequisites/gating.
+- WebRTC/native video (external meeting URLs only).
+- Email/SMS delivery (blocked on domain verification per your note; UI shows the toggle).
+- Push notifications (web push / mobile).
+- Recurring live classes, calendar drag-to-reschedule.
+- Moderation queue, report/flag on discussions.
+- iCal feed subscription URL (per-event .ics only).

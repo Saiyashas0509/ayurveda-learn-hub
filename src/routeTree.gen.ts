@@ -19,23 +19,31 @@ import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
 import { Route as DemoCatalogRouteImport } from './routes/demo.catalog'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCertificatesRouteImport } from './routes/_authenticated/certificates'
 import { Route as AuthenticatedCatalogRouteImport } from './routes/_authenticated/catalog'
+import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
+import { Route as AuthenticatedLiveIndexRouteImport } from './routes/_authenticated/live.index'
 import { Route as AuthenticatedAssignmentsIndexRouteImport } from './routes/_authenticated/assignments.index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as DemoQuizQuizIdRouteImport } from './routes/demo.quiz.$quizId'
 import { Route as DemoLessonsLessonIdRouteImport } from './routes/demo.lessons.$lessonId'
 import { Route as DemoCoursesSlugRouteImport } from './routes/demo.courses.$slug'
+import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings.notifications'
 import { Route as AuthenticatedQuizQuizIdRouteImport } from './routes/_authenticated/quiz.$quizId'
+import { Route as AuthenticatedLiveIdRouteImport } from './routes/_authenticated/live.$id'
 import { Route as AuthenticatedLessonsLessonIdRouteImport } from './routes/_authenticated/lessons.$lessonId'
+import { Route as AuthenticatedDiscussionsCourseIdRouteImport } from './routes/_authenticated/discussions.$courseId'
 import { Route as AuthenticatedCoursesSlugRouteImport } from './routes/_authenticated/courses.$slug'
 import { Route as AuthenticatedAssignmentsAssignmentIdRouteImport } from './routes/_authenticated/assignments.$assignmentId'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin/submissions'
+import { Route as AuthenticatedAdminLiveRouteImport } from './routes/_authenticated/admin/live'
 import { Route as AuthenticatedAdminAuditLogsRouteImport } from './routes/_authenticated/admin/audit-logs'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
 import { Route as AuthenticatedAdminCoursesIndexRouteImport } from './routes/_authenticated/admin/courses.index'
+import { Route as AuthenticatedDiscussionsThreadThreadIdRouteImport } from './routes/_authenticated/discussions.thread.$threadId'
 import { Route as AuthenticatedAdminCoursesCourseIdRouteImport } from './routes/_authenticated/admin/courses.$courseId'
 
 const SetupRoute = SetupRouteImport.update({
@@ -87,6 +95,12 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -101,6 +115,16 @@ const AuthenticatedCertificatesRoute =
 const AuthenticatedCatalogRoute = AuthenticatedCatalogRouteImport.update({
   id: '/catalog',
   path: '/catalog',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLiveIndexRoute = AuthenticatedLiveIndexRouteImport.update({
+  id: '/live/',
+  path: '/live/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedAssignmentsIndexRoute =
@@ -129,15 +153,32 @@ const DemoCoursesSlugRoute = DemoCoursesSlugRouteImport.update({
   path: '/courses/$slug',
   getParentRoute: () => DemoRoute,
 } as any)
+const AuthenticatedSettingsNotificationsRoute =
+  AuthenticatedSettingsNotificationsRouteImport.update({
+    id: '/settings/notifications',
+    path: '/settings/notifications',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedQuizQuizIdRoute = AuthenticatedQuizQuizIdRouteImport.update({
   id: '/quiz/$quizId',
   path: '/quiz/$quizId',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLiveIdRoute = AuthenticatedLiveIdRouteImport.update({
+  id: '/live/$id',
+  path: '/live/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedLessonsLessonIdRoute =
   AuthenticatedLessonsLessonIdRouteImport.update({
     id: '/lessons/$lessonId',
     path: '/lessons/$lessonId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDiscussionsCourseIdRoute =
+  AuthenticatedDiscussionsCourseIdRouteImport.update({
+    id: '/discussions/$courseId',
+    path: '/discussions/$courseId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCoursesSlugRoute =
@@ -163,6 +204,11 @@ const AuthenticatedAdminSubmissionsRoute =
     path: '/admin/submissions',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminLiveRoute = AuthenticatedAdminLiveRouteImport.update({
+  id: '/admin/live',
+  path: '/admin/live',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminAuditLogsRoute =
   AuthenticatedAdminAuditLogsRouteImport.update({
     id: '/admin/audit-logs',
@@ -181,6 +227,12 @@ const AuthenticatedAdminCoursesIndexRoute =
     path: '/admin/courses/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedDiscussionsThreadThreadIdRoute =
+  AuthenticatedDiscussionsThreadThreadIdRouteImport.update({
+    id: '/discussions/thread/$threadId',
+    path: '/discussions/thread/$threadId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminCoursesCourseIdRoute =
   AuthenticatedAdminCoursesCourseIdRouteImport.update({
     id: '/admin/courses/$courseId',
@@ -193,9 +245,11 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/demo': typeof DemoRouteWithChildren
   '/setup': typeof SetupRoute
+  '/calendar': typeof AuthenticatedCalendarRoute
   '/catalog': typeof AuthenticatedCatalogRoute
   '/certificates': typeof AuthenticatedCertificatesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/demo/catalog': typeof DemoCatalogRoute
@@ -203,27 +257,35 @@ export interface FileRoutesByFullPath {
   '/demo/': typeof DemoIndexRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
+  '/admin/live': typeof AuthenticatedAdminLiveRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/assignments/$assignmentId': typeof AuthenticatedAssignmentsAssignmentIdRoute
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
+  '/discussions/$courseId': typeof AuthenticatedDiscussionsCourseIdRoute
   '/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
+  '/live/$id': typeof AuthenticatedLiveIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
+  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/demo/courses/$slug': typeof DemoCoursesSlugRoute
   '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
   '/demo/quiz/$quizId': typeof DemoQuizQuizIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/assignments/': typeof AuthenticatedAssignmentsIndexRoute
+  '/live/': typeof AuthenticatedLiveIndexRoute
   '/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
+  '/discussions/thread/$threadId': typeof AuthenticatedDiscussionsThreadThreadIdRoute
   '/admin/courses/': typeof AuthenticatedAdminCoursesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/setup': typeof SetupRoute
+  '/calendar': typeof AuthenticatedCalendarRoute
   '/catalog': typeof AuthenticatedCatalogRoute
   '/certificates': typeof AuthenticatedCertificatesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/demo/catalog': typeof DemoCatalogRoute
@@ -231,18 +293,24 @@ export interface FileRoutesByTo {
   '/demo': typeof DemoIndexRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
+  '/admin/live': typeof AuthenticatedAdminLiveRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/assignments/$assignmentId': typeof AuthenticatedAssignmentsAssignmentIdRoute
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
+  '/discussions/$courseId': typeof AuthenticatedDiscussionsCourseIdRoute
   '/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
+  '/live/$id': typeof AuthenticatedLiveIdRoute
   '/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
+  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/demo/courses/$slug': typeof DemoCoursesSlugRoute
   '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
   '/demo/quiz/$quizId': typeof DemoQuizQuizIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/assignments': typeof AuthenticatedAssignmentsIndexRoute
+  '/live': typeof AuthenticatedLiveIndexRoute
   '/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
+  '/discussions/thread/$threadId': typeof AuthenticatedDiscussionsThreadThreadIdRoute
   '/admin/courses': typeof AuthenticatedAdminCoursesIndexRoute
 }
 export interface FileRoutesById {
@@ -252,9 +320,11 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/demo': typeof DemoRouteWithChildren
   '/setup': typeof SetupRoute
+  '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/catalog': typeof AuthenticatedCatalogRoute
   '/_authenticated/certificates': typeof AuthenticatedCertificatesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/demo/catalog': typeof DemoCatalogRoute
@@ -262,18 +332,24 @@ export interface FileRoutesById {
   '/demo/': typeof DemoIndexRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
+  '/_authenticated/admin/live': typeof AuthenticatedAdminLiveRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/assignments/$assignmentId': typeof AuthenticatedAssignmentsAssignmentIdRoute
   '/_authenticated/courses/$slug': typeof AuthenticatedCoursesSlugRoute
+  '/_authenticated/discussions/$courseId': typeof AuthenticatedDiscussionsCourseIdRoute
   '/_authenticated/lessons/$lessonId': typeof AuthenticatedLessonsLessonIdRoute
+  '/_authenticated/live/$id': typeof AuthenticatedLiveIdRoute
   '/_authenticated/quiz/$quizId': typeof AuthenticatedQuizQuizIdRoute
+  '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/demo/courses/$slug': typeof DemoCoursesSlugRoute
   '/demo/lessons/$lessonId': typeof DemoLessonsLessonIdRoute
   '/demo/quiz/$quizId': typeof DemoQuizQuizIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/assignments/': typeof AuthenticatedAssignmentsIndexRoute
+  '/_authenticated/live/': typeof AuthenticatedLiveIndexRoute
   '/_authenticated/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
+  '/_authenticated/discussions/thread/$threadId': typeof AuthenticatedDiscussionsThreadThreadIdRoute
   '/_authenticated/admin/courses/': typeof AuthenticatedAdminCoursesIndexRoute
 }
 export interface FileRouteTypes {
@@ -283,9 +359,11 @@ export interface FileRouteTypes {
     | '/auth'
     | '/demo'
     | '/setup'
+    | '/calendar'
     | '/catalog'
     | '/certificates'
     | '/dashboard'
+    | '/notifications'
     | '/onboarding'
     | '/profile'
     | '/demo/catalog'
@@ -293,27 +371,35 @@ export interface FileRouteTypes {
     | '/demo/'
     | '/admin/announcements'
     | '/admin/audit-logs'
+    | '/admin/live'
     | '/admin/submissions'
     | '/admin/users'
     | '/assignments/$assignmentId'
     | '/courses/$slug'
+    | '/discussions/$courseId'
     | '/lessons/$lessonId'
+    | '/live/$id'
     | '/quiz/$quizId'
+    | '/settings/notifications'
     | '/demo/courses/$slug'
     | '/demo/lessons/$lessonId'
     | '/demo/quiz/$quizId'
     | '/admin/'
     | '/assignments/'
+    | '/live/'
     | '/admin/courses/$courseId'
+    | '/discussions/thread/$threadId'
     | '/admin/courses/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/setup'
+    | '/calendar'
     | '/catalog'
     | '/certificates'
     | '/dashboard'
+    | '/notifications'
     | '/onboarding'
     | '/profile'
     | '/demo/catalog'
@@ -321,18 +407,24 @@ export interface FileRouteTypes {
     | '/demo'
     | '/admin/announcements'
     | '/admin/audit-logs'
+    | '/admin/live'
     | '/admin/submissions'
     | '/admin/users'
     | '/assignments/$assignmentId'
     | '/courses/$slug'
+    | '/discussions/$courseId'
     | '/lessons/$lessonId'
+    | '/live/$id'
     | '/quiz/$quizId'
+    | '/settings/notifications'
     | '/demo/courses/$slug'
     | '/demo/lessons/$lessonId'
     | '/demo/quiz/$quizId'
     | '/admin'
     | '/assignments'
+    | '/live'
     | '/admin/courses/$courseId'
+    | '/discussions/thread/$threadId'
     | '/admin/courses'
   id:
     | '__root__'
@@ -341,9 +433,11 @@ export interface FileRouteTypes {
     | '/auth'
     | '/demo'
     | '/setup'
+    | '/_authenticated/calendar'
     | '/_authenticated/catalog'
     | '/_authenticated/certificates'
     | '/_authenticated/dashboard'
+    | '/_authenticated/notifications'
     | '/_authenticated/onboarding'
     | '/_authenticated/profile'
     | '/demo/catalog'
@@ -351,18 +445,24 @@ export interface FileRouteTypes {
     | '/demo/'
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/audit-logs'
+    | '/_authenticated/admin/live'
     | '/_authenticated/admin/submissions'
     | '/_authenticated/admin/users'
     | '/_authenticated/assignments/$assignmentId'
     | '/_authenticated/courses/$slug'
+    | '/_authenticated/discussions/$courseId'
     | '/_authenticated/lessons/$lessonId'
+    | '/_authenticated/live/$id'
     | '/_authenticated/quiz/$quizId'
+    | '/_authenticated/settings/notifications'
     | '/demo/courses/$slug'
     | '/demo/lessons/$lessonId'
     | '/demo/quiz/$quizId'
     | '/_authenticated/admin/'
     | '/_authenticated/assignments/'
+    | '/_authenticated/live/'
     | '/_authenticated/admin/courses/$courseId'
+    | '/_authenticated/discussions/thread/$threadId'
     | '/_authenticated/admin/courses/'
   fileRoutesById: FileRoutesById
 }
@@ -447,6 +547,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -466,6 +573,20 @@ declare module '@tanstack/react-router' {
       path: '/catalog'
       fullPath: '/catalog'
       preLoaderRoute: typeof AuthenticatedCatalogRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/calendar': {
+      id: '/_authenticated/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AuthenticatedCalendarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/live/': {
+      id: '/_authenticated/live/'
+      path: '/live'
+      fullPath: '/live/'
+      preLoaderRoute: typeof AuthenticatedLiveIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/assignments/': {
@@ -503,6 +624,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoCoursesSlugRouteImport
       parentRoute: typeof DemoRoute
     }
+    '/_authenticated/settings/notifications': {
+      id: '/_authenticated/settings/notifications'
+      path: '/settings/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/quiz/$quizId': {
       id: '/_authenticated/quiz/$quizId'
       path: '/quiz/$quizId'
@@ -510,11 +638,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedQuizQuizIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/live/$id': {
+      id: '/_authenticated/live/$id'
+      path: '/live/$id'
+      fullPath: '/live/$id'
+      preLoaderRoute: typeof AuthenticatedLiveIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/lessons/$lessonId': {
       id: '/_authenticated/lessons/$lessonId'
       path: '/lessons/$lessonId'
       fullPath: '/lessons/$lessonId'
       preLoaderRoute: typeof AuthenticatedLessonsLessonIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/discussions/$courseId': {
+      id: '/_authenticated/discussions/$courseId'
+      path: '/discussions/$courseId'
+      fullPath: '/discussions/$courseId'
+      preLoaderRoute: typeof AuthenticatedDiscussionsCourseIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/courses/$slug': {
@@ -545,6 +687,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSubmissionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/live': {
+      id: '/_authenticated/admin/live'
+      path: '/admin/live'
+      fullPath: '/admin/live'
+      preLoaderRoute: typeof AuthenticatedAdminLiveRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/audit-logs': {
       id: '/_authenticated/admin/audit-logs'
       path: '/admin/audit-logs'
@@ -566,6 +715,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCoursesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/discussions/thread/$threadId': {
+      id: '/_authenticated/discussions/thread/$threadId'
+      path: '/discussions/thread/$threadId'
+      fullPath: '/discussions/thread/$threadId'
+      preLoaderRoute: typeof AuthenticatedDiscussionsThreadThreadIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/courses/$courseId': {
       id: '/_authenticated/admin/courses/$courseId'
       path: '/admin/courses/$courseId'
@@ -577,44 +733,62 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedCatalogRoute: typeof AuthenticatedCatalogRoute
   AuthenticatedCertificatesRoute: typeof AuthenticatedCertificatesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
   AuthenticatedAdminAuditLogsRoute: typeof AuthenticatedAdminAuditLogsRoute
+  AuthenticatedAdminLiveRoute: typeof AuthenticatedAdminLiveRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAssignmentsAssignmentIdRoute: typeof AuthenticatedAssignmentsAssignmentIdRoute
   AuthenticatedCoursesSlugRoute: typeof AuthenticatedCoursesSlugRoute
+  AuthenticatedDiscussionsCourseIdRoute: typeof AuthenticatedDiscussionsCourseIdRoute
   AuthenticatedLessonsLessonIdRoute: typeof AuthenticatedLessonsLessonIdRoute
+  AuthenticatedLiveIdRoute: typeof AuthenticatedLiveIdRoute
   AuthenticatedQuizQuizIdRoute: typeof AuthenticatedQuizQuizIdRoute
+  AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAssignmentsIndexRoute: typeof AuthenticatedAssignmentsIndexRoute
+  AuthenticatedLiveIndexRoute: typeof AuthenticatedLiveIndexRoute
   AuthenticatedAdminCoursesCourseIdRoute: typeof AuthenticatedAdminCoursesCourseIdRoute
+  AuthenticatedDiscussionsThreadThreadIdRoute: typeof AuthenticatedDiscussionsThreadThreadIdRoute
   AuthenticatedAdminCoursesIndexRoute: typeof AuthenticatedAdminCoursesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedCatalogRoute: AuthenticatedCatalogRoute,
   AuthenticatedCertificatesRoute: AuthenticatedCertificatesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
   AuthenticatedAdminAuditLogsRoute: AuthenticatedAdminAuditLogsRoute,
+  AuthenticatedAdminLiveRoute: AuthenticatedAdminLiveRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAssignmentsAssignmentIdRoute:
     AuthenticatedAssignmentsAssignmentIdRoute,
   AuthenticatedCoursesSlugRoute: AuthenticatedCoursesSlugRoute,
+  AuthenticatedDiscussionsCourseIdRoute: AuthenticatedDiscussionsCourseIdRoute,
   AuthenticatedLessonsLessonIdRoute: AuthenticatedLessonsLessonIdRoute,
+  AuthenticatedLiveIdRoute: AuthenticatedLiveIdRoute,
   AuthenticatedQuizQuizIdRoute: AuthenticatedQuizQuizIdRoute,
+  AuthenticatedSettingsNotificationsRoute:
+    AuthenticatedSettingsNotificationsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAssignmentsIndexRoute: AuthenticatedAssignmentsIndexRoute,
+  AuthenticatedLiveIndexRoute: AuthenticatedLiveIndexRoute,
   AuthenticatedAdminCoursesCourseIdRoute:
     AuthenticatedAdminCoursesCourseIdRoute,
+  AuthenticatedDiscussionsThreadThreadIdRoute:
+    AuthenticatedDiscussionsThreadThreadIdRoute,
   AuthenticatedAdminCoursesIndexRoute: AuthenticatedAdminCoursesIndexRoute,
 }
 
@@ -650,13 +824,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
