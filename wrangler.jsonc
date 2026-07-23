@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "travancore-ayurveda-lms",
+  "name": "saiyashas0509-ayurveda-learn-hub",
   "compatibility_date": "2026-07-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server.ts"
