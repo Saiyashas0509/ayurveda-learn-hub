@@ -663,7 +663,12 @@ function LessonEditor({
                 Upload
               </label>
             </div>
-            {videoUrl && <p className="mt-1 truncate text-xs text-muted-foreground">{videoUrl}</p>}
+            <Input
+              className="mt-2"
+              placeholder="https://videos.example.com/lesson.mp4"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+            />
             {videoProgress !== null && <Progress value={videoProgress} className="mt-2" />}
             <div className="mt-2 flex items-center gap-2">
               <Label className="text-xs">Duration (sec)</Label>
