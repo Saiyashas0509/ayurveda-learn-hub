@@ -15,12 +15,10 @@ function Catalog() {
   const { data } = useSuspenseQuery(
     queryOptions({ queryKey: ["catalog"], queryFn: () => fn() }),
   );
-  const [activeCat, setActiveCat] = useState<string | null>(null);
   const [q, setQ] = useState("");
 
-  const filtered = data.courses.filter((c) =>
-    (!activeCat || c.category_id === activeCat) &&
-    (q === "" || c.title.toLowerCase().includes(q.toLowerCase())),
+  const filtered = data.courses.filter(
+    (c) => q === "" || c.title.toLowerCase().includes(q.toLowerCase()),
   );
 
   return (
@@ -28,9 +26,7 @@ function Catalog() {
       <div>
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Learning</p>
         <h1 className="mt-1 font-display text-3xl font-semibold">Course Catalog</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Curriculum organized by function. Pick a category or search for a topic.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Search for a course.</p>
       </div>
 
       <div className="relative max-w-md">
@@ -38,36 +34,10 @@ function Catalog() {
         <Input placeholder="Search courses…" className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setActiveCat(null)}
-          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-            activeCat === null ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-foreground"
-          }`}
-        >
-          All ({data.courses.length})
-        </button>
-        {data.categories.map((cat) => {
-          const count = data.courses.filter((c) => c.category_id === cat.id).length;
-          const active = activeCat === cat.id;
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCat(cat.id)}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                active ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-foreground"
-              }`}
-            >
-              {cat.name} {count > 0 && <span className="opacity-60">· {count}</span>}
-            </button>
-          );
-        })}
-      </div>
-
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-12 text-center">
           <BookOpen className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">No courses in this category yet.</p>
+          <p className="mt-3 text-sm text-muted-foreground">No courses yet.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

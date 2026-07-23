@@ -105,24 +105,20 @@ function Dashboard() {
             </Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            {data.courses.map((c) => {
-              const catName = (c as { course_categories?: { name?: string } }).course_categories?.name;
-              return (
+            {data.courses.map((c) => (
               <Link
                 key={c.id}
                 to="/courses/$slug"
                 params={{ slug: c.slug }}
                 className="group rounded-xl border border-border bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elevated"
               >
-                <p className="text-xs font-medium uppercase tracking-widest text-gold">
-                  {catName ?? "Course"}
-                </p>
+                <p className="text-xs font-medium uppercase tracking-widest text-gold">Course</p>
                 <h3 className="mt-2 font-display text-lg font-semibold group-hover:text-primary">{c.title}</h3>
                 <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
                   <BookOpen className="h-3.5 w-3.5" /> Ayurvedic training module
                 </div>
               </Link>
-            );})}
+            ))}
             {data.courses.length === 0 && (
               <p className="col-span-full rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
                 No courses published yet.

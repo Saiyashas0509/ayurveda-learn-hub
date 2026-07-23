@@ -14,7 +14,7 @@ export const getMyDashboard = createServerFn({ method: "GET" })
       supabase.from("lesson_progress").select("id,completed_at,lesson_id,lessons(course_id,title)").eq("user_id", userId),
       supabase.from("certificates").select("id,cert_code,issued_at,courses(title)").eq("user_id", userId).order("issued_at", { ascending: false }).limit(5),
       supabase.from("announcements").select("id,title,body,published_at").order("published_at", { ascending: false }).limit(5),
-      supabase.from("courses").select("id,title,slug,cover_url,category_id,course_categories(name)").eq("is_published", true).limit(6),
+      supabase.from("courses").select("id,title,slug,cover_url").eq("is_published", true).limit(6),
     ]);
 
     const completedLessonIds = new Set((progress.data ?? []).filter((p) => p.completed_at).map((p) => p.lesson_id));
@@ -34,11 +34,12 @@ export const getMyDashboard = createServerFn({ method: "GET" })
 export const listCatalog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const [cats, courses] = await Promise.all([
-      context.supabase.from("course_categories").select("*").order("sort_order"),
-      context.supabase.from("courses").select("id,title,slug,description,cover_url,duration_minutes,category_id").eq("is_published", true).order("created_at", { ascending: false }),
-    ]);
-    return { categories: cats.data ?? [], courses: courses.data ?? [] };
+    const { data: courses } = await context.supabase
+      .from("courses")
+      .select("id,title,slug,description,cover_url,duration_minutes")
+      .eq("is_published", true)
+      .order("created_at", { ascending: false });
+    return { courses: courses ?? [] };
   });
 
 export const getCourse = createServerFn({ method: "GET" })
@@ -47,7 +48,7 @@ export const getCourse = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: course } = await context.supabase
       .from("courses")
-      .select("*,course_categories(name,slug)")
+      .select("*")
       .eq("slug", data.slug)
       .maybeSingle();
     if (!course) throw new Error("Course not found");

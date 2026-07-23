@@ -86,7 +86,7 @@ function CourseBuilder() {
         ← Back to courses
       </Link>
 
-      <CourseHeader course={data.course} categories={data.categories} onSaved={invalidate} />
+      <CourseHeader course={data.course} onSaved={invalidate} />
 
       <Tabs defaultValue="structure" className="w-full">
         <TabsList>
@@ -119,14 +119,12 @@ function CourseBuilder() {
 
 function CourseHeader({
   course,
-  categories,
   onSaved,
 }: {
   course: {
     id: string;
     title: string;
     description: string | null;
-    category_id: string | null;
     cover_url: string | null;
     preview_allowed: boolean;
     is_published: boolean;
@@ -134,7 +132,6 @@ function CourseHeader({
     last_published_at: string | null;
     duration_minutes: number | null;
   };
-  categories: { id: string; name: string }[];
   onSaved: () => void;
 }) {
   const save = useServerFn(upsertCourse);
@@ -142,7 +139,6 @@ function CourseHeader({
   const unpub = useServerFn(unpublishCourse);
   const [title, setTitle] = useState(course.title);
   const [desc, setDesc] = useState(course.description ?? "");
-  const [categoryId, setCategoryId] = useState(course.category_id ?? "");
   const [preview, setPreview] = useState(course.preview_allowed);
 
   const saveMut = useMutation({
@@ -152,7 +148,6 @@ function CourseHeader({
           id: course.id,
           title,
           description: desc,
-          category_id: categoryId || null,
           preview_allowed: preview,
         },
       }),
@@ -190,37 +185,20 @@ function CourseHeader({
             rows={2}
             placeholder="Description"
           />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <Label className="text-xs">Category</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Uncategorized" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Switch id="preview" checked={preview} onCheckedChange={setPreview} />
+              <Label htmlFor="preview" className="text-sm">
+                Preview allowed
+              </Label>
             </div>
-            <div className="flex items-end gap-3">
-              <div className="flex items-center gap-2">
-                <Switch id="preview" checked={preview} onCheckedChange={setPreview} />
-                <Label htmlFor="preview" className="text-sm">
-                  Preview allowed
-                </Label>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => saveMut.mutate()}
-                disabled={saveMut.isPending}
-              >
-                <Save className="mr-2 h-4 w-4" /> Save
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              onClick={() => saveMut.mutate()}
+              disabled={saveMut.isPending}
+            >
+              <Save className="mr-2 h-4 w-4" /> Save
+            </Button>
           </div>
         </div>
 

@@ -14,15 +14,13 @@ function CoursePage() {
   const { data } = useSuspenseQuery(
     queryOptions({ queryKey: ["course", slug], queryFn: () => fn({ data: { slug } }) }),
   );
-  const catName = (data.course as { course_categories?: { name?: string } }).course_categories?.name;
-
   const completed = data.lessons.filter((l) => data.progress[l.id]).length;
   const pct = data.lessons.length ? Math.round((completed / data.lessons.length) * 100) : 0;
 
   return (
     <div className="space-y-8">
       <div className="rounded-2xl bg-hero p-8 text-primary-foreground shadow-elevated">
-        <p className="text-xs uppercase tracking-[0.2em] text-gold">{catName ?? "Course"}</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-gold">Course</p>
         <h1 className="mt-2 font-display text-3xl font-semibold">{data.course.title}</h1>
         <p className="mt-3 max-w-2xl text-primary-foreground/80">{data.course.description}</p>
         <div className="mt-6 flex flex-wrap items-center gap-4 text-sm">

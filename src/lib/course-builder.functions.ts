@@ -22,7 +22,7 @@ export const listAuthoredCourses = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("courses")
-      .select("id,title,slug,status,is_published,version,last_published_at,updated_at,cover_url,course_categories(name)")
+      .select("id,title,slug,status,is_published,version,last_published_at,updated_at,cover_url")
       .order("updated_at", { ascending: false });
     return data ?? [];
   });
@@ -33,13 +33,12 @@ export const getCourseForEdit = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     await assertFaculty(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [course, modules, lessons, quizzes, assignments, categories] = await Promise.all([
+    const [course, modules, lessons, quizzes, assignments] = await Promise.all([
       supabaseAdmin.from("courses").select("*").eq("id", data.courseId).maybeSingle(),
       supabaseAdmin.from("course_modules").select("*").eq("course_id", data.courseId).order("sort_order"),
       supabaseAdmin.from("lessons").select("*").eq("course_id", data.courseId).order("sort_order"),
       supabaseAdmin.from("quizzes").select("id,title,lesson_id,pass_percent").eq("course_id", data.courseId),
       supabaseAdmin.from("assignments").select("*").eq("course_id", data.courseId).order("created_at"),
-      supabaseAdmin.from("course_categories").select("id,name").order("name"),
     ]);
     if (!course.data) throw new Error("Course not found");
     return {
@@ -48,7 +47,6 @@ export const getCourseForEdit = createServerFn({ method: "GET" })
       lessons: lessons.data ?? [],
       quizzes: quizzes.data ?? [],
       assignments: assignments.data ?? [],
-      categories: categories.data ?? [],
     };
   });
 
@@ -62,7 +60,6 @@ export const upsertCourse = createServerFn({ method: "POST" })
     id?: string;
     title: string;
     description?: string;
-    category_id?: string | null;
     cover_url?: string | null;
     preview_allowed?: boolean;
     duration_minutes?: number;
@@ -70,7 +67,6 @@ export const upsertCourse = createServerFn({ method: "POST" })
     id: z.string().uuid().optional(),
     title: z.string().trim().min(2).max(200),
     description: z.string().max(4000).optional(),
-    category_id: z.string().uuid().nullable().optional(),
     cover_url: z.string().max(1000).nullable().optional(),
     preview_allowed: z.boolean().optional(),
     duration_minutes: z.number().int().min(0).optional(),
@@ -82,7 +78,6 @@ export const upsertCourse = createServerFn({ method: "POST" })
       const { error } = await supabaseAdmin.from("courses").update({
         title: data.title,
         description: data.description ?? null,
-        category_id: data.category_id ?? null,
         cover_url: data.cover_url ?? null,
         preview_allowed: data.preview_allowed ?? false,
         duration_minutes: data.duration_minutes ?? 0,
@@ -96,7 +91,6 @@ export const upsertCourse = createServerFn({ method: "POST" })
       title: data.title,
       slug,
       description: data.description ?? null,
-      category_id: data.category_id ?? null,
       cover_url: data.cover_url ?? null,
       preview_allowed: data.preview_allowed ?? false,
       duration_minutes: data.duration_minutes ?? 0,
