@@ -37,6 +37,12 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   org_admin: "Organization Admin",
 };
 
+// Roles that require password-based sign-in at /admin/login instead of the
+// OTP/Google flow — chosen to match the set that can access the Admin panel
+// (see assertAdmin in admin.functions.ts). Kept separate from the broader
+// "employee" roles below so day-to-day staff keep the low-friction OTP flow.
+export const ADMIN_ONLY_ROLES: AppRole[] = ["super_admin", "hr_admin"];
+
 // Roles that can be picked during self-signup (no pre-seeded pending_bootstrap).
 // Others must be pre-registered by an admin so tenants stay isolated.
 export const SELF_SIGNUP_ROLES: AppRole[] = ["student"];

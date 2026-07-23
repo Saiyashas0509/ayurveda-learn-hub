@@ -1,10 +1,9 @@
-<!-- LOVABLE:BEGIN -->
-> [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
+# Agent notes
+
+This project deploys to Cloudflare Workers via `@cloudflare/vite-plugin` + Wrangler.
+It is no longer connected to Lovable — force-pushing/rebasing published history is fine.
+
+- `npm run dev` — local dev server
+- `npm run build` — production build (client + Worker)
+- `npm run deploy` — build and deploy to Cloudflare Workers
+- `npm run cf-typegen` — regenerate Cloudflare binding types after editing `wrangler.jsonc`

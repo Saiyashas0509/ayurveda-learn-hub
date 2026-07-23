@@ -1,4 +1,4 @@
-import logo from "@/assets/travancore-ayurveda-logo-transparent.png.asset.json";
+import logo from "@/assets/travancore-ayurveda-logo-new.png";
 import { cn } from "@/lib/utils";
 
 type BrandLogoProps = {
@@ -11,7 +11,7 @@ type BrandLogoProps = {
 export function BrandLogo({ className, imgClassName, onDark = false }: BrandLogoProps) {
   const img = (
     <img
-      src={logo.url}
+      src={logo}
       alt="Travancore Ayurveda"
       className={cn("h-full w-auto object-contain", imgClassName)}
       loading="eager"

@@ -3,6 +3,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { ADMIN_ONLY_ROLES, type AppRole } from "@/lib/auth-helpers";
+import { getSiteOrigin } from "@/lib/site-origin";
 
 async function assertAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -15,28 +17,53 @@ async function assertAdmin(userId: string) {
   if (!data || data.length === 0) throw new Error("Forbidden: admin role required");
 }
 
+// Admin roles sign in with a password, not OTP/Google (see /admin/login).
+// Whenever someone is created or promoted into an admin role, send them a
+// Supabase "reset password" email — the same email works as a first-time
+// "set your password" link since the account has no password yet.
+async function sendAdminPasswordSetupEmail(email: string) {
+  const { supabase } = await import("@/integrations/supabase/client");
+  const redirectTo = `${getSiteOrigin()}/admin/set-password`;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) console.error(`[admin-password-setup] failed to email ${email}:`, error.message);
+}
+
+function isAdminRole(role: string): role is AppRole {
+  return (ADMIN_ONLY_ROLES as string[]).includes(role);
+}
+
 export const createEmployeeUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: {
-    email: string;
-    fullName: string;
-    role: string;
-    centerId?: string | null;
-    designation?: string;
-    employeeCode?: string;
-  }) => {
-    return z.object({
-      email: z.string().trim().toLowerCase().email().max(255),
-      fullName: z.string().trim().min(2).max(120),
-      role: z.enum([
-        "super_admin","hr_admin","regional_manager","center_head_doctor",
-        "front_office","therapist","trainer","auditor",
-      ]),
-      centerId: z.string().uuid().nullable().optional(),
-      designation: z.string().max(120).optional(),
-      employeeCode: z.string().max(40).optional(),
-    }).parse(data);
-  })
+  .inputValidator(
+    (data: {
+      email: string;
+      fullName: string;
+      role: string;
+      centerId?: string | null;
+      designation?: string;
+      employeeCode?: string;
+    }) => {
+      return z
+        .object({
+          email: z.string().trim().toLowerCase().email().max(255),
+          fullName: z.string().trim().min(2).max(120),
+          role: z.enum([
+            "super_admin",
+            "hr_admin",
+            "regional_manager",
+            "center_head_doctor",
+            "front_office",
+            "therapist",
+            "trainer",
+            "auditor",
+          ]),
+          centerId: z.string().uuid().nullable().optional(),
+          designation: z.string().max(120).optional(),
+          employeeCode: z.string().max(40).optional(),
+        })
+        .parse(data);
+    },
+  )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -57,6 +84,9 @@ export const createEmployeeUser = createServerFn({ method: "POST" })
       designation: data.designation ?? null,
       employee_code: data.employeeCode ?? null,
       status: "active",
+      // Admin-created accounts skip the self-signup onboarding wizard —
+      // the admin already supplied everything it would have collected.
+      onboarding_completed_at: new Date().toISOString(),
     });
     await supabaseAdmin.from("user_roles").insert({ user_id: userId, role: data.role });
     await supabaseAdmin.from("audit_logs").insert({
@@ -65,16 +95,21 @@ export const createEmployeeUser = createServerFn({ method: "POST" })
       target: userId,
       metadata: { email: data.email, role: data.role },
     });
+    if (isAdminRole(data.role)) {
+      await sendAdminPasswordSetupEmail(data.email);
+    }
     return { ok: true, userId };
   });
 
 export const setUserStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { userId: string; status: "active" | "disabled" }) =>
-    z.object({
-      userId: z.string().uuid(),
-      status: z.enum(["active", "disabled"]),
-    }).parse(data),
+    z
+      .object({
+        userId: z.string().uuid(),
+        status: z.enum(["active", "disabled"]),
+      })
+      .parse(data),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
@@ -91,13 +126,21 @@ export const setUserStatus = createServerFn({ method: "POST" })
 export const setUserRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { userId: string; role: string }) =>
-    z.object({
-      userId: z.string().uuid(),
-      role: z.enum([
-        "super_admin","hr_admin","regional_manager","center_head_doctor",
-        "front_office","therapist","trainer","auditor",
-      ]),
-    }).parse(data),
+    z
+      .object({
+        userId: z.string().uuid(),
+        role: z.enum([
+          "super_admin",
+          "hr_admin",
+          "regional_manager",
+          "center_head_doctor",
+          "front_office",
+          "therapist",
+          "trainer",
+          "auditor",
+        ]),
+      })
+      .parse(data),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
@@ -110,25 +153,35 @@ export const setUserRole = createServerFn({ method: "POST" })
       target: data.userId,
       metadata: { role: data.role },
     });
+    if (isAdminRole(data.role)) {
+      const { data: emp } = await supabaseAdmin.from("employees").select("email").eq("id", data.userId).maybeSingle();
+      if (emp?.email) await sendAdminPasswordSetupEmail(emp.email);
+    }
     return { ok: true };
   });
 
 export const publishAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { title: string; body: string }) =>
-    z.object({
-      title: z.string().trim().min(2).max(200),
-      body: z.string().trim().min(2).max(4000),
-    }).parse(data),
+    z
+      .object({
+        title: z.string().trim().min(2).max(200),
+        body: z.string().trim().min(2).max(4000),
+      })
+      .parse(data),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("announcements").insert({
-      title: data.title, body: data.body, created_by: context.userId,
+      title: data.title,
+      body: data.body,
+      created_by: context.userId,
     });
     await supabaseAdmin.from("audit_logs").insert({
-      actor_id: context.userId, action: "announcement_published", metadata: { title: data.title },
+      actor_id: context.userId,
+      action: "announcement_published",
+      metadata: { title: data.title },
     });
     return { ok: true };
   });
@@ -138,31 +191,171 @@ export const getAdminOverview = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [employees, courses, attempts, certs, logs] = await Promise.all([
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
+    const now = new Date().toISOString();
+    const [
+      employees,
+      activeEmployees,
+      disabledEmployees,
+      newThisWeek,
+      courses,
+      attempts,
+      certs,
+      pendingSubmissions,
+      gradedSubmissions,
+      upcomingLive,
+      logs,
+    ] = await Promise.all([
       supabaseAdmin.from("employees").select("*", { count: "exact", head: true }),
+      supabaseAdmin
+        .from("employees")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "active"),
+      supabaseAdmin
+        .from("employees")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "disabled"),
+      supabaseAdmin
+        .from("employees")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", weekAgo),
       supabaseAdmin.from("courses").select("*", { count: "exact", head: true }),
       supabaseAdmin.from("quiz_attempts").select("*", { count: "exact", head: true }),
       supabaseAdmin.from("certificates").select("*", { count: "exact", head: true }),
-      supabaseAdmin.from("audit_logs").select("id,actor_email,action,created_at,target,metadata").order("created_at", { ascending: false }).limit(20),
+      supabaseAdmin
+        .from("assignment_submissions")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "submitted"),
+      supabaseAdmin
+        .from("assignment_submissions")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "graded"),
+      supabaseAdmin
+        .from("live_classes")
+        .select("*", { count: "exact", head: true })
+        .gte("starts_at", now),
+      supabaseAdmin
+        .from("audit_logs")
+        .select("id,actor_email,action,created_at,target,metadata")
+        .order("created_at", { ascending: false })
+        .limit(20),
     ]);
     return {
       employees: employees.count ?? 0,
+      activeEmployees: activeEmployees.count ?? 0,
+      disabledEmployees: disabledEmployees.count ?? 0,
+      newThisWeek: newThisWeek.count ?? 0,
       courses: courses.count ?? 0,
       attempts: attempts.count ?? 0,
       certificates: certs.count ?? 0,
+      pendingSubmissions: pendingSubmissions.count ?? 0,
+      gradedSubmissions: gradedSubmissions.count ?? 0,
+      upcomingLiveClasses: upcomingLive.count ?? 0,
       recentLogs: logs.data ?? [],
     };
   });
 
+const EMPLOYEE_ROLE_ENUM = [
+  "super_admin",
+  "hr_admin",
+  "regional_manager",
+  "center_head_doctor",
+  "front_office",
+  "therapist",
+  "trainer",
+  "auditor",
+] as const;
+
 export const listEmployees = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator(
+    (data: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      status?: "active" | "disabled" | "all";
+      role?: string;
+      centerId?: string;
+    }) =>
+      z
+        .object({
+          page: z.number().int().min(1).default(1),
+          pageSize: z.number().int().min(1).max(100).default(20),
+          search: z.string().trim().max(200).optional(),
+          status: z.enum(["active", "disabled", "all"]).default("all"),
+          role: z.enum([...EMPLOYEE_ROLE_ENUM, "all"]).default("all"),
+          centerId: z.string().uuid().optional(),
+        })
+        .parse(data ?? {}),
+  )
+  .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
+
+    let q = supabaseAdmin
       .from("employees")
-      .select("id,email,full_name,status,designation,employee_code,center_id,centers(name),user_roles(role)")
-      .order("created_at", { ascending: false })
-      .limit(200);
-    return data ?? [];
+      .select(
+        "id,email,full_name,status,designation,employee_code,center_id,created_at,centers(name),user_roles(role)",
+        { count: "exact" },
+      )
+      .order("created_at", { ascending: false });
+
+    if (data.search) {
+      const s = data.search.replace(/[%_]/g, "");
+      q = q.or(`full_name.ilike.%${s}%,email.ilike.%${s}%,employee_code.ilike.%${s}%`);
+    }
+    if (data.status !== "all") q = q.eq("status", data.status);
+    if (data.centerId) q = q.eq("center_id", data.centerId);
+
+    const from = (data.page - 1) * data.pageSize;
+    const to = from + data.pageSize - 1;
+    q = q.range(from, to);
+
+    const { data: rows, count, error } = await q;
+    if (error) throw new Error(error.message);
+
+    // Role filtering happens post-fetch since it's on a joined table; for typical
+    // admin panel sizes this is fine, and role is rarely combined with pagination edge cases.
+    const filtered =
+      data.role === "all"
+        ? (rows ?? [])
+        : (rows ?? []).filter((r) =>
+            (r.user_roles as unknown as { role: string }[] | null)?.some(
+              (ur) => ur.role === data.role,
+            ),
+          );
+
+    return {
+      rows: filtered,
+      total: count ?? 0,
+      page: data.page,
+      pageSize: data.pageSize,
+      pageCount: Math.max(1, Math.ceil((count ?? 0) / data.pageSize)),
+    };
+  });
+
+export const bulkSetUserStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { userIds: string[]; status: "active" | "disabled" }) =>
+    z
+      .object({
+        userIds: z.array(z.string().uuid()).min(1).max(200),
+        status: z.enum(["active", "disabled"]),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("employees")
+      .update({ status: data.status })
+      .in("id", data.userIds);
+    if (error) throw new Error(error.message);
+    await supabaseAdmin.from("audit_logs").insert({
+      actor_id: context.userId,
+      action: `bulk_user_${data.status}`,
+      metadata: { userIds: data.userIds, count: data.userIds.length },
+    });
+    return { ok: true, count: data.userIds.length };
   });

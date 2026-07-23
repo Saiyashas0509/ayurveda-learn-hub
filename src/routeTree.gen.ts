@@ -17,6 +17,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DemoIndexRouteImport } from './routes/demo.index'
 import { Route as VerifyCodeRouteImport } from './routes/verify.$code'
 import { Route as DemoCatalogRouteImport } from './routes/demo.catalog'
+import { Route as AdminSetPasswordRouteImport } from './routes/admin.set-password'
+import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
@@ -84,6 +86,16 @@ const DemoCatalogRoute = DemoCatalogRouteImport.update({
   id: '/catalog',
   path: '/catalog',
   getParentRoute: () => DemoRoute,
+} as any)
+const AdminSetPasswordRoute = AdminSetPasswordRouteImport.update({
+  id: '/admin/set-password',
+  path: '/admin/set-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   id: '/profile',
@@ -252,6 +264,8 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/set-password': typeof AdminSetPasswordRoute
   '/demo/catalog': typeof DemoCatalogRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/demo/': typeof DemoIndexRoute
@@ -288,6 +302,8 @@ export interface FileRoutesByTo {
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/profile': typeof AuthenticatedProfileRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/set-password': typeof AdminSetPasswordRoute
   '/demo/catalog': typeof DemoCatalogRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/demo': typeof DemoIndexRoute
@@ -327,6 +343,8 @@ export interface FileRoutesById {
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/set-password': typeof AdminSetPasswordRoute
   '/demo/catalog': typeof DemoCatalogRoute
   '/verify/$code': typeof VerifyCodeRoute
   '/demo/': typeof DemoIndexRoute
@@ -366,6 +384,8 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/onboarding'
     | '/profile'
+    | '/admin/login'
+    | '/admin/set-password'
     | '/demo/catalog'
     | '/verify/$code'
     | '/demo/'
@@ -402,6 +422,8 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/onboarding'
     | '/profile'
+    | '/admin/login'
+    | '/admin/set-password'
     | '/demo/catalog'
     | '/verify/$code'
     | '/demo'
@@ -440,6 +462,8 @@ export interface FileRouteTypes {
     | '/_authenticated/notifications'
     | '/_authenticated/onboarding'
     | '/_authenticated/profile'
+    | '/admin/login'
+    | '/admin/set-password'
     | '/demo/catalog'
     | '/verify/$code'
     | '/demo/'
@@ -472,6 +496,8 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   DemoRoute: typeof DemoRouteWithChildren
   SetupRoute: typeof SetupRoute
+  AdminLoginRoute: typeof AdminLoginRoute
+  AdminSetPasswordRoute: typeof AdminSetPasswordRoute
   VerifyCodeRoute: typeof VerifyCodeRoute
 }
 
@@ -532,6 +558,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/demo/catalog'
       preLoaderRoute: typeof DemoCatalogRouteImport
       parentRoute: typeof DemoRoute
+    }
+    '/admin/set-password': {
+      id: '/admin/set-password'
+      path: '/admin/set-password'
+      fullPath: '/admin/set-password'
+      preLoaderRoute: typeof AdminSetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/profile': {
       id: '/_authenticated/profile'
@@ -819,6 +859,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   DemoRoute: DemoRouteWithChildren,
   SetupRoute: SetupRoute,
+  AdminLoginRoute: AdminLoginRoute,
+  AdminSetPasswordRoute: AdminSetPasswordRoute,
   VerifyCodeRoute: VerifyCodeRoute,
 }
 export const routeTree = rootRouteImport

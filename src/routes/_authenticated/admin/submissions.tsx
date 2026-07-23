@@ -1,89 +1,216 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { listSubmissionsForGrading, gradeSubmission } from "@/lib/assignments.functions";
 import { getSignedDownloadUrl } from "@/lib/course-builder.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { AdminHeader } from "@/components/admin/admin-header";
+import { StatusPill } from "@/components/admin/status-pill";
+import { StatTile } from "@/components/admin/stat-tile";
+import {
+  TABLE_WRAP,
+  TABLE,
+  THEAD,
+  TH,
+  TH_RIGHT,
+  TBODY,
+  TR,
+  TD,
+  TD_RIGHT,
+  EMPTY_ROW,
+} from "@/components/admin/table";
 import { toast } from "sonner";
-import { ClipboardCheck, Download } from "lucide-react";
+import {
+  Download,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  CheckCircle2,
+  Percent,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/submissions")({
   component: SubmissionsPage,
 });
 
+const PAGE_SIZE = 20;
+
 function SubmissionsPage() {
   const list = useServerFn(listSubmissionsForGrading);
-  const [filter, setFilter] = useState<string>("all");
+  const [assignmentFilter, setAssignmentFilter] = useState<string>("all");
+  const [status, setStatus] = useState<"all" | "submitted" | "graded">("all");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [grading, setGrading] = useState<string | null>(null);
-  const { data } = useSuspenseQuery(queryOptions({
-    queryKey: ["submissions", filter],
-    queryFn: () => list({ data: { assignmentId: filter === "all" ? undefined : filter } }),
-  }));
 
-  const grading_row = grading ? data.submissions.find((s) => s.id === grading) ?? null : null;
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const queryKey = ["submissions", { assignmentFilter, status, debouncedSearch, page }];
+  const { data, isLoading, isFetching } = useQuery(
+    queryOptions({
+      queryKey,
+      queryFn: () =>
+        list({
+          data: {
+            assignmentId: assignmentFilter === "all" ? undefined : assignmentFilter,
+            status,
+            search: debouncedSearch || undefined,
+            page,
+            pageSize: PAGE_SIZE,
+          },
+        }),
+      placeholderData: (prev) => prev,
+    }),
+  );
+
+  const submissions = data?.submissions ?? [];
+  const assignments = data?.assignments ?? [];
+  const pageCount = data?.pageCount ?? 1;
+  const stats = data?.stats;
+
+  const grading_row = grading ? (submissions.find((s) => s.id === grading) ?? null) : null;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Faculty</p>
-          <h1 className="mt-1 flex items-center gap-2 font-display text-3xl font-semibold">
-            <ClipboardCheck className="h-6 w-6" /> Grading
-          </h1>
+      <AdminHeader
+        title="Grading"
+        description="Review and grade student assignment submissions."
+        actions={
+          <div className="w-64">
+            <Select
+              value={assignmentFilter}
+              onValueChange={(v) => {
+                setAssignmentFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All assignments</SelectItem>
+                {assignments.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.title} — {(a.courses as { title?: string } | null)?.title ?? ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        }
+      />
+
+      {stats && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <StatTile
+            icon={ClipboardList}
+            label="Pending"
+            value={stats.pending}
+            tone={stats.pending > 0 ? "warning" : "default"}
+          />
+          <StatTile icon={CheckCircle2} label="Graded" value={stats.graded} tone="success" />
+          <StatTile icon={Percent} label="Average grade" value={stats.avgGrade ?? "—"} />
         </div>
-        <div className="w-72">
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All assignments</SelectItem>
-              {data.assignments.map((a) => (
-                <SelectItem key={a.id} value={a.id}>
-                  {a.title} — {(a.courses as { title?: string } | null)?.title ?? ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search student name or email…"
+            className="pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
+        <Select
+          value={status}
+          onValueChange={(v) => {
+            setStatus(v as typeof status);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="submitted">Pending</SelectItem>
+            <SelectItem value="graded">Graded</SelectItem>
+          </SelectContent>
+        </Select>
+        {isFetching && !isLoading && (
+          <span className="text-xs text-muted-foreground">Refreshing…</span>
+        )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+      <div className={TABLE_WRAP}>
+        <table className={TABLE}>
+          <thead className={THEAD}>
             <tr>
-              <th className="px-4 py-3 text-left">Student</th>
-              <th className="px-4 py-3 text-left">Assignment</th>
-              <th className="px-4 py-3 text-left">Submitted</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-left">Grade</th>
-              <th className="px-4 py-3"></th>
+              <th className={TH}>Student</th>
+              <th className={TH}>Assignment</th>
+              <th className={TH}>Submitted</th>
+              <th className={TH}>Status</th>
+              <th className={TH}>Grade</th>
+              <th className={TH_RIGHT}>Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {data.submissions.map((s) => {
-              const student = (s.employees as { full_name?: string; email?: string } | null);
-              const assignment = (s.assignments as { title?: string; max_score?: number } | null);
+          <tbody className={TBODY}>
+            {submissions.map((s) => {
+              const student = s.employees as { full_name?: string; email?: string } | null;
+              const assignment = s.assignments as { title?: string; max_score?: number } | null;
               return (
-                <tr key={s.id} className="border-t border-border">
-                  <td className="px-4 py-3">
+                <tr key={s.id} className={TR}>
+                  <td className={TD}>
                     <p className="font-medium">{student?.full_name ?? "—"}</p>
                     <p className="text-xs text-muted-foreground">{student?.email ?? ""}</p>
                   </td>
-                  <td className="px-4 py-3">{assignment?.title ?? "—"}</td>
-                  <td className="px-4 py-3 text-xs">
-                    {new Date(s.submitted_at).toLocaleString()}
-                    {s.is_late && <Badge variant="destructive" className="ml-2">Late</Badge>}
+                  <td className={TD}>{assignment?.title ?? "—"}</td>
+                  <td className={TD}>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {new Date(s.submitted_at).toLocaleString()}
+                      {s.is_late && (
+                        <StatusPill tone="danger" dot={false}>
+                          Late
+                        </StatusPill>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={s.status === "graded" ? "default" : "secondary"}>{s.status}</Badge>
+                  <td className={TD}>
+                    <StatusPill tone={s.status === "graded" ? "success" : "warning"}>
+                      {s.status}
+                    </StatusPill>
                   </td>
-                  <td className="px-4 py-3">{s.grade != null ? `${s.grade}/${assignment?.max_score ?? 100}` : "—"}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className={TD}>
+                    {s.grade != null ? `${s.grade}/${assignment?.max_score ?? 100}` : "—"}
+                  </td>
+                  <td className={TD_RIGHT}>
                     <Button size="sm" variant="outline" onClick={() => setGrading(s.id)}>
                       {s.status === "graded" ? "Review" : "Grade"}
                     </Button>
@@ -91,28 +218,67 @@ function SubmissionsPage() {
                 </tr>
               );
             })}
-            {data.submissions.length === 0 && (
-              <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No submissions yet.</td></tr>
+            {!isLoading && submissions.length === 0 && (
+              <tr>
+                <td colSpan={6} className={EMPTY_ROW}>
+                  No submissions match these filters.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {grading_row && (
-        <GradeDialog submission={grading_row} onClose={() => setGrading(null)} />
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">
+            Page {page} of {pageCount}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" /> Prev
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page >= pageCount}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       )}
+
+      {grading_row && <GradeDialog submission={grading_row} onClose={() => setGrading(null)} />}
     </div>
   );
 }
 
-function GradeDialog({ submission, onClose }: {
+function GradeDialog({
+  submission,
+  onClose,
+}: {
   submission: {
-    id: string; file_url: string | null; file_name: string | null; grade: number | null;
-    feedback: string | null; assignments: unknown;
+    id: string;
+    file_url: string | null;
+    file_name: string | null;
+    grade: number | null;
+    feedback: string | null;
+    assignments: unknown;
   };
   onClose: () => void;
 }) {
-  const assignment = submission.assignments as { title?: string; max_score?: number; rubric?: string } | null;
+  const assignment = submission.assignments as {
+    title?: string;
+    max_score?: number;
+    rubric?: string;
+  } | null;
   const grade = useServerFn(gradeSubmission);
   const dl = useServerFn(getSignedDownloadUrl);
   const qc = useQueryClient();
@@ -121,20 +287,28 @@ function GradeDialog({ submission, onClose }: {
 
   const mut = useMutation({
     mutationFn: () => grade({ data: { submissionId: submission.id, grade: g, feedback: fb } }),
-    onSuccess: () => { toast.success("Grade saved"); qc.invalidateQueries({ queryKey: ["submissions"] }); onClose(); },
+    onSuccess: () => {
+      toast.success("Grade saved");
+      qc.invalidateQueries({ queryKey: ["submissions"] });
+      onClose();
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
   const openFile = async () => {
     if (!submission.file_url) return;
-    const { url } = await dl({ data: { bucket: "assignment-submissions", path: submission.file_url } });
+    const { url } = await dl({
+      data: { bucket: "assignment-submissions", path: submission.file_url },
+    });
     window.open(url, "_blank");
   };
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>Grade — {assignment?.title}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Grade — {assignment?.title}</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           {submission.file_url && (
             <Button variant="outline" onClick={openFile} className="w-full justify-start">
@@ -148,8 +322,16 @@ function GradeDialog({ submission, onClose }: {
             </div>
           )}
           <div>
-            <label className="text-sm font-medium">Grade (out of {assignment?.max_score ?? 100})</label>
-            <Input type="number" value={g} onChange={(e) => setG(Number(e.target.value))} min={0} max={assignment?.max_score ?? 100} />
+            <label className="text-sm font-medium">
+              Grade (out of {assignment?.max_score ?? 100})
+            </label>
+            <Input
+              type="number"
+              value={g}
+              onChange={(e) => setG(Number(e.target.value))}
+              min={0}
+              max={assignment?.max_score ?? 100}
+            />
           </div>
           <div>
             <label className="text-sm font-medium">Feedback</label>
@@ -157,8 +339,12 @@ function GradeDialog({ submission, onClose }: {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => mut.mutate()} disabled={mut.isPending}>Save grade</Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
+            Save grade
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

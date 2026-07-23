@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { ADMIN_ONLY_ROLES } from "@/lib/auth-helpers";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -85,6 +86,18 @@ export const requestLoginOtp = createServerFn({ method: "POST" })
       if (emp.status !== "active") {
         throw new Error("Your account is disabled. Contact your administrator.");
       }
+      const { data: roles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", emp.id);
+      const isAdminAccount = (roles ?? []).some((r) => (ADMIN_ONLY_ROLES as string[]).includes(r.role));
+      if (isAdminAccount) {
+        await supabaseAdmin.from("audit_logs").insert({
+          actor_email: data.email,
+          action: "otp_request_denied_admin_requires_password",
+        });
+        throw new Error("This account requires password sign-in. Use the admin login page instead.");
+      }
       allowed = true;
     } else {
       const { data: pending } = await supabaseAdmin
@@ -113,6 +126,9 @@ export const requestLoginOtp = createServerFn({ method: "POST" })
   });
 
 // Record final login success + finalize any pending bootstrap for this user.
+// Also enforces that admin-role accounts (super_admin/hr_admin) only complete
+// sign-in via password — OTP/Google sessions for those accounts get rejected
+// here and the client signs them back out, pointing them to /admin/login.
 export const recordLoginSuccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -141,6 +157,8 @@ export const recordLoginSuccess = createServerFn({ method: "POST" })
             full_name: pending.full_name,
             status: "active",
             designation: "Super Administrator",
+            // Skip the self-signup onboarding wizard — /setup already collected this.
+            onboarding_completed_at: new Date().toISOString(),
           });
           await supabaseAdmin
             .from("user_roles")
@@ -150,6 +168,14 @@ export const recordLoginSuccess = createServerFn({ method: "POST" })
             actor_email: email,
             action: "bootstrap_super_admin_finalized",
           });
+          // This first login was necessarily OTP-based (no password exists yet).
+          // Immediately send a password-setup email; the check below will then
+          // sign them out and send them to set one before they can proceed.
+          const { supabase } = await import("@/integrations/supabase/client");
+          const { getSiteOrigin } = await import("@/lib/site-origin");
+          await supabase.auth
+            .resetPasswordForEmail(email, { redirectTo: `${getSiteOrigin()}/admin/set-password` })
+            .catch((err) => console.error("[bootstrap-password-setup] failed:", err));
         }
         await supabaseAdmin.from("pending_bootstrap").delete().eq("email", email);
       } else {
@@ -170,6 +196,23 @@ export const recordLoginSuccess = createServerFn({ method: "POST" })
         actor_email: email,
         action: "login_success",
       });
+
+      // Enforce password-only auth for admin roles, regardless of how this
+      // session was established (OTP, Google, or the bootstrap promotion above).
+      const { data: roles } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
+      const isAdminAccount = (roles ?? []).some((r) => (ADMIN_ONLY_ROLES as string[]).includes(r.role));
+      if (isAdminAccount) {
+        const amr = (context.claims as { amr?: { method?: string }[] }).amr ?? [];
+        const usedPassword = amr.some((entry) => entry.method === "password");
+        if (!usedPassword) {
+          await supabaseAdmin.from("audit_logs").insert({
+            actor_id: userId,
+            actor_email: email,
+            action: "admin_login_rejected_no_password",
+          });
+          throw new Error("ADMIN_PASSWORD_REQUIRED");
+        }
+      }
     }
     return { ok: true };
   });

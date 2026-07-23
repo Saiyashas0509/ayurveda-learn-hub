@@ -5,11 +5,19 @@ import { useState } from "react";
 import { listAuthoredCourses, upsertCourse } from "@/lib/course-builder.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Wrench } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { AdminHeader } from "@/components/admin/admin-header";
 
 export const Route = createFileRoute("/_authenticated/admin/courses/")({
   component: CourseBuilderList,
@@ -24,13 +32,17 @@ function CourseBuilderList() {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
 
-  const { data } = useSuspenseQuery(queryOptions({ queryKey: ["authored-courses"], queryFn: () => list() }));
+  const { data } = useSuspenseQuery(
+    queryOptions({ queryKey: ["authored-courses"], queryFn: () => list() }),
+  );
 
   const mut = useMutation({
     mutationFn: () => create({ data: { title, description: desc } }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["authored-courses"] });
-      setOpen(false); setTitle(""); setDesc("");
+      setOpen(false);
+      setTitle("");
+      setDesc("");
       toast.success("Course created");
       nav({ to: "/admin/courses/$courseId", params: { courseId: res.id } });
     },
@@ -39,32 +51,45 @@ function CourseBuilderList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Authoring</p>
-          <h1 className="mt-1 flex items-center gap-2 font-display text-3xl font-semibold">
-            <Wrench className="h-6 w-6" /> Course Builder
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Create modules, lessons, quizzes and assignments.</p>
-        </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> New Course</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Create course</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <Input placeholder="Course title" value={title} onChange={(e) => setTitle(e.target.value)} />
-              <Textarea placeholder="Short description" value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} />
-            </div>
-            <DialogFooter>
-              <Button onClick={() => mut.mutate()} disabled={title.trim().length < 2 || mut.isPending}>
-                {mut.isPending ? "Creating…" : "Create draft"}
+      <AdminHeader
+        title="Course Builder"
+        description="Create modules, lessons, quizzes and assignments."
+        actions={
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="mr-1.5 h-3.5 w-3.5" /> New Course
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create course</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Course title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+                <Textarea
+                  placeholder="Short description"
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  onClick={() => mut.mutate()}
+                  disabled={title.trim().length < 2 || mut.isPending}
+                >
+                  {mut.isPending ? "Creating…" : "Create draft"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
       <div className="rounded-xl border border-border bg-card shadow-card">
         <ul className="divide-y divide-border">
@@ -78,7 +103,10 @@ function CourseBuilderList() {
                 <div className="flex-1 min-w-0">
                   <p className="truncate font-medium">{c.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    v{c.version} · {c.last_published_at ? `published ${new Date(c.last_published_at).toLocaleDateString()}` : "never published"}
+                    v{c.version} ·{" "}
+                    {c.last_published_at
+                      ? `published ${new Date(c.last_published_at).toLocaleDateString()}`
+                      : "never published"}
                   </p>
                 </div>
                 <Badge variant={c.is_published ? "default" : "secondary"}>
@@ -88,7 +116,9 @@ function CourseBuilderList() {
             </li>
           ))}
           {data.length === 0 && (
-            <li className="p-8 text-center text-sm text-muted-foreground">No courses yet — create your first one.</li>
+            <li className="p-8 text-center text-sm text-muted-foreground">
+              No courses yet — create your first one.
+            </li>
           )}
         </ul>
       </div>
