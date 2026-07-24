@@ -44,8 +44,19 @@ export const ROLE_LABELS: Record<AppRole, string> = {
 export const ADMIN_ONLY_ROLES: AppRole[] = ["super_admin", "hr_admin"];
 
 // Roles that can be picked during self-signup (no pre-seeded pending_bootstrap).
-// Others must be pre-registered by an admin so tenants stay isolated.
-export const SELF_SIGNUP_ROLES: AppRole[] = ["student"];
+// Front-line/individual-contributor roles only — anything with management,
+// admin-panel, or cross-center authority still requires an admin invitation
+// so tenant isolation and org structure stay under admin control.
+export const SELF_SIGNUP_ROLES: AppRole[] = [
+  "student",
+  "front_office",
+  "therapist",
+  "trainer",
+  "doctor",
+  "faculty",
+  "hospital_staff",
+  "corporate_employee",
+];
 
 export const LEARNING_INTERESTS = [
   "Ayurveda Basics",
@@ -68,6 +79,12 @@ export const ORG_TYPE_LABELS: Record<OrgType, string> = {
 };
 
 export async function signOutFully() {
+  try {
+    const { clearOtpVerification } = await import("@/lib/auth.functions");
+    await clearOtpVerification({});
+  } catch {
+    // Best-effort — don't block sign-out if this fails.
+  }
   await supabase.auth.signOut();
   if (typeof window !== "undefined") window.location.href = "/auth";
 }

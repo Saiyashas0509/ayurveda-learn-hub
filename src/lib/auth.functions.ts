@@ -125,6 +125,35 @@ export const requestLoginOtp = createServerFn({ method: "POST" })
     return { ok: true, allowed, isNewSignup };
   });
 
+// Called right after a successful OTP verification (post-Google or post-
+// email) to stamp this auth user as verified for the current login cycle.
+// Stored on app_metadata (not user_metadata — the client can't write
+// app_metadata) so /auth's own mount check and the route guard can both read
+// it straight off the session, with no extra query.
+export const confirmOtpVerification = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+      app_metadata: { ...existing?.user?.app_metadata, otp_verified_at: new Date().toISOString() },
+    });
+    return { ok: true };
+  });
+
+// Called on sign-out so the next sign-in requires the OTP step again, even
+// if a Google session gets re-established without the user re-authenticating.
+export const clearOtpVerification = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+      app_metadata: { ...existing?.user?.app_metadata, otp_verified_at: null },
+    });
+    return { ok: true };
+  });
+
 // Record final login success + finalize any pending bootstrap for this user.
 // Also enforces that admin-role accounts (super_admin/hr_admin) only complete
 // sign-in via password — OTP/Google sessions for those accounts get rejected

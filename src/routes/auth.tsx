@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { requestLoginOtp, recordLoginSuccess } from "@/lib/auth.functions";
+import { requestLoginOtp, recordLoginSuccess, confirmOtpVerification } from "@/lib/auth.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,11 +26,14 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+type Stage = "checking" | "email" | "sending-otp" | "otp";
+
 function AuthPage() {
   const navigate = useNavigate();
   const request = useServerFn(requestLoginOtp);
   const record = useServerFn(recordLoginSuccess);
-  const [stage, setStage] = useState<"email" | "otp">("email");
+  const confirmOtp = useServerFn(confirmOtpVerification);
+  const [stage, setStage] = useState<Stage>("checking");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,13 +66,61 @@ function AuthPage() {
     }
   }
 
+  async function sendOtpTo(addr: string): Promise<boolean> {
+    // Server checks employee/pending-bootstrap allow-list, rate limit, audit
+    const res = await request({ data: { email: addr } });
+    if (res.allowed) {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: addr,
+        options: { shouldCreateUser: res.isNewSignup },
+      });
+      if (error) throw error;
+    }
+    return res.allowed;
+  }
+
+  // Every login requires a fresh OTP — including right after Google, and
+  // including if a session is somehow still around from before. Only a
+  // session already stamped otp_verified_at (set at the end of a completed
+  // OTP verification) skips straight through.
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session) {
-        if (await finalizeSession()) navigate({ to: "/dashboard" });
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        setStage("email");
+        return;
       }
-    });
-  }, [navigate]);
+      if (data.user.app_metadata?.otp_verified_at) {
+        if (await finalizeSession()) navigate({ to: "/dashboard" });
+        else setStage("email");
+        return;
+      }
+      const addr = (data.user.email ?? "").toLowerCase();
+      if (!addr) {
+        setStage("email");
+        return;
+      }
+      setEmail(addr);
+      setStage("sending-otp");
+      try {
+        const allowed = await sendOtpTo(addr);
+        if (!allowed) {
+          await supabase.auth.signOut();
+          toast.error("This Google account isn't registered. Contact your administrator.");
+          setStage("email");
+          return;
+        }
+        toast.success(`Verification code sent to ${addr}`);
+        setStage("otp");
+        setCooldown(30);
+      } catch {
+        toast.error("Could not send verification code. Try signing in again.");
+        await supabase.auth.signOut();
+        setStage("email");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
@@ -92,15 +143,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const addr = email.trim().toLowerCase();
-      // Server checks employee/pending-bootstrap allow-list, rate limit, audit
-      const res = await request({ data: { email: addr } });
-      if (res.allowed) {
-        const { error } = await supabase.auth.signInWithOtp({
-          email: addr,
-          options: { shouldCreateUser: res.isNewSignup },
-        });
-        if (error) throw error;
-      }
+      await sendOtpTo(addr);
       // Always show the OTP stage to avoid leaking whether the email is registered.
       toast.success("If your account exists, an OTP has been sent.");
       setStage("otp");
@@ -125,6 +168,10 @@ function AuthPage() {
       });
       if (error) throw error;
       if (!data.session) throw new Error("Verification failed.");
+      // Stamp this login as OTP-verified so route guards / this page's own
+      // mount check treat it as complete. Best-effort — a logging hiccup
+      // here shouldn't block a real, successfully verified session.
+      await confirmOtp({}).catch(() => null);
       if (await finalizeSession()) {
         toast.success("Welcome back.");
         navigate({ to: "/dashboard" });
@@ -148,11 +195,12 @@ function AuthPage() {
               Continue your learning journey — securely.
             </h1>
             <p className="mt-4 max-w-md text-primary-foreground/80">
-              Sign in with your company email. We'll send a one-time verification code — no passwords to remember.
+              Sign in with Google or your company email, then confirm with a one-time code sent to
+              your inbox — every time.
             </p>
             <div className="mt-8 flex items-center gap-2 text-sm text-primary-foreground/70">
               <ShieldCheck className="h-4 w-4 text-gold" />
-              Rate-limited, session-timed, and fully audit-logged.
+              Two-step verification, fully audit-logged.
             </div>
           </div>
           <p className="text-xs text-primary-foreground/60">
@@ -167,7 +215,14 @@ function AuthPage() {
             <BrandLogo className="h-16" />
           </div>
 
-          {stage === "email" ? (
+          {(stage === "checking" || stage === "sending-otp") && (
+            <div className="flex flex-col items-center gap-3 py-12 text-sm text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              {stage === "sending-otp" ? "Sending your verification code…" : "Checking your session…"}
+            </div>
+          )}
+
+          {stage === "email" && (
             <div className="space-y-6">
               <div>
                 <h2 className="font-display text-2xl font-semibold">Employee Sign In</h2>
@@ -182,8 +237,12 @@ function AuthPage() {
                 disabled={googleLoading}
                 onClick={handleGoogleSignIn}
               >
-                {googleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                  <><GoogleIcon className="mr-2 h-4 w-4" /> Continue with Google</>
+                {googleLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <GoogleIcon className="mr-2 h-4 w-4" /> Continue with Google
+                  </>
                 )}
               </Button>
 
@@ -192,56 +251,75 @@ function AuthPage() {
               </div>
 
               <form onSubmit={handleRequest} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="email">Company email</Label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    required
-                    autoFocus
-                    autoComplete="email"
-                    placeholder="you@travancoreayurveda.com"
-                    className="pl-9"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    maxLength={255}
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="email">Company email</Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      required
+                      autoFocus
+                      autoComplete="email"
+                      placeholder="you@travancoreayurveda.com"
+                      className="pl-9"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      maxLength={255}
+                    />
+                  </div>
                 </div>
-              </div>
-              <Button type="submit" className="w-full" size="lg" disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (<>Send verification code <ArrowRight className="ml-2 h-4 w-4" /></>)}
-              </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                Access is restricted to registered employees. Contact your administrator if you need an account.
-              </p>
+                <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      Send verification code <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">
+                  Access is restricted to registered employees. Contact your administrator if you need
+                  an account.
+                </p>
               </form>
             </div>
-          ) : (
+          )}
+
+          {stage === "otp" && (
             <form onSubmit={handleVerify} className="space-y-6">
               <div>
                 <h2 className="font-display text-2xl font-semibold">Enter your code</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>. It expires in 5 minutes.
+                  We sent a 6-digit code to{" "}
+                  <span className="font-medium text-foreground">{email}</span>. It expires in 5
+                  minutes.
                 </p>
               </div>
               <div className="flex justify-center">
                 <InputOTP maxLength={6} value={code} onChange={setCode} autoFocus>
                   <InputOTPGroup>
-                    {[0,1,2,3,4,5].map((i) => (
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
                       <InputOTPSlot key={i} index={i} />
                     ))}
                   </InputOTPGroup>
                 </InputOTP>
               </div>
-              <Button type="submit" className="w-full" size="lg" disabled={loading || code.length !== 6}>
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={loading || code.length !== 6}
+              >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify & sign in"}
               </Button>
               <div className="flex items-center justify-between text-xs">
                 <button
                   type="button"
-                  onClick={() => { setStage("email"); setCode(""); }}
+                  onClick={() => {
+                    setStage("email");
+                    setCode("");
+                  }}
                   className="text-muted-foreground hover:text-foreground"
                 >
                   ← Use a different email
@@ -259,7 +337,10 @@ function AuthPage() {
           )}
 
           <p className="mt-8 text-center text-xs text-muted-foreground">
-            Admin? <Link to="/admin/login" className="text-primary hover:underline">Sign in with your password</Link>
+            Admin?{" "}
+            <Link to="/admin/login" className="text-primary hover:underline">
+              Sign in with your password
+            </Link>
           </p>
         </div>
       </div>

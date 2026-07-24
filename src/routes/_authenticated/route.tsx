@@ -10,6 +10,17 @@ export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async ({ location }) => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
+
+    // Every login must pass OTP — except admin accounts, which authenticate
+    // with a password at /admin/login and never go through the OTP flow.
+    // getUser() always re-fetches from the server, so this reflects the
+    // latest verification state (e.g. right after a sign-out clears it).
+    if (!data.user.app_metadata?.otp_verified_at) {
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
+      const isAdmin = (roles ?? []).some((r) => r.role === "super_admin" || r.role === "hr_admin");
+      if (!isAdmin) throw redirect({ to: "/auth" });
+    }
+
     // Gate: force onboarding until an employees row with onboarding_completed_at exists.
     if (!location.pathname.startsWith("/onboarding")) {
       const { data: emp } = await supabase
