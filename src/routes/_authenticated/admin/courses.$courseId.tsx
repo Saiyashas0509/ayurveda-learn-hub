@@ -203,6 +203,9 @@ function CourseHeader({
           <Badge variant={course.is_published ? "default" : "secondary"} className="text-xs">
             {course.is_published ? "Published" : "Draft"}
           </Badge>
+          <p className="text-xs text-muted-foreground">
+            Total duration: {course.duration_minutes ?? 0} min (from lesson videos)
+          </p>
           <p className="text-xs text-muted-foreground">Version {course.version}</p>
           <p className="text-xs text-muted-foreground">
             {course.last_published_at
@@ -539,7 +542,9 @@ function LessonEditor({
   const [desc, setDesc] = useState(lesson.description ?? "");
   const [preview, setPreview] = useState(lesson.preview_allowed);
   const [videoUrl, setVideoUrl] = useState(lesson.video_url ?? "");
-  const [duration, setDuration] = useState(lesson.duration_seconds ?? 0);
+  const [durationMinutes, setDurationMinutes] = useState(
+    Math.round(((lesson.duration_seconds ?? 0) / 60) * 10) / 10,
+  );
   const [resources, setResources] = useState<Resource[]>(
     Array.isArray(lesson.resources) ? (lesson.resources as Resource[]) : [],
   );
@@ -558,7 +563,7 @@ function LessonEditor({
         title,
         description: desc,
         video_url: videoUrl || null,
-        duration_seconds: Number(duration) || 0,
+        duration_seconds: Math.round((Number(durationMinutes) || 0) * 60),
         preview_allowed: preview,
         resources,
       },
@@ -663,11 +668,13 @@ function LessonEditor({
             />
             {videoProgress !== null && <Progress value={videoProgress} className="mt-2" />}
             <div className="mt-2 flex items-center gap-2">
-              <Label className="text-xs">Duration (sec)</Label>
+              <Label className="text-xs">Duration (min)</Label>
               <Input
                 type="number"
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
+                step="0.5"
+                min="0"
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(Number(e.target.value))}
                 className="w-24"
               />
             </div>
