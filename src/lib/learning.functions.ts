@@ -3,31 +3,114 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+// Roles whose dashboard shows org/team-level stats (orgMembers, orgCompletions,
+// pendingReviews) rather than just personal learning progress — see roleViews.ts.
+const PLATFORM_WIDE_ROLES = new Set(["super_admin", "hr_admin"]);
+const ORG_SCOPED_ROLES = new Set([
+  "org_admin",
+  "franchise_owner",
+  "regional_manager",
+  "center_head_doctor",
+  "doctor",
+  "faculty",
+  "trainer",
+]);
+const REVIEWER_ROLES = new Set(["doctor", "faculty", "trainer"]);
+
 export const getMyDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
 
     const [employee, roles, progress, certs, announcements, courses] = await Promise.all([
-      supabase.from("employees").select("full_name,email,designation,center_id,primary_role,organization_id,centers(name),organizations(name,org_type)").eq("id", userId).maybeSingle(),
+      supabase
+        .from("employees")
+        .select(
+          "full_name,email,designation,center_id,primary_role,organization_id,centers(name),organizations(name,org_type)",
+        )
+        .eq("id", userId)
+        .maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", userId),
-      supabase.from("lesson_progress").select("id,completed_at,lesson_id,lessons(course_id,title)").eq("user_id", userId),
-      supabase.from("certificates").select("id,cert_code,issued_at,courses(title)").eq("user_id", userId).order("issued_at", { ascending: false }).limit(5),
-      supabase.from("announcements").select("id,title,body,published_at").order("published_at", { ascending: false }).limit(5),
+      supabase
+        .from("lesson_progress")
+        .select("id,completed_at,lesson_id,lessons(course_id,title)")
+        .eq("user_id", userId),
+      supabase
+        .from("certificates")
+        .select("id,cert_code,issued_at,courses(title)")
+        .eq("user_id", userId)
+        .order("issued_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("announcements")
+        .select("id,title,body,published_at")
+        .order("published_at", { ascending: false })
+        .limit(5),
       supabase.from("courses").select("id,title,slug,cover_url").eq("is_published", true).limit(6),
     ]);
 
-    const completedLessonIds = new Set((progress.data ?? []).filter((p) => p.completed_at).map((p) => p.lesson_id));
+    const completedLessonIds = new Set(
+      (progress.data ?? []).filter((p) => p.completed_at).map((p) => p.lesson_id),
+    );
     const pendingCount = (progress.data ?? []).length - completedLessonIds.size;
+
+    const roleList = (roles.data ?? []).map((r) => r.role);
+    const isPlatformWide = roleList.some((r) => PLATFORM_WIDE_ROLES.has(r));
+    const isOrgScoped = isPlatformWide || roleList.some((r) => ORG_SCOPED_ROLES.has(r));
+    const orgId = employee.data?.organization_id ?? null;
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    let orgMembers = 0;
+    let orgCompletions = 0;
+    let pendingReviews = 0;
+
+    if (isPlatformWide) {
+      const [membersRes, certsThisMonth] = await Promise.all([
+        supabase.from("employees").select("id", { count: "exact", head: true }),
+        supabase
+          .from("certificates")
+          .select("id", { count: "exact", head: true })
+          .gte("issued_at", monthStart.toISOString()),
+      ]);
+      orgMembers = membersRes.count ?? 0;
+      orgCompletions = certsThisMonth.count ?? 0;
+    } else if (isOrgScoped && orgId) {
+      const [membersRes, certsThisMonth] = await Promise.all([
+        supabase
+          .from("employees")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", orgId),
+        supabase
+          .from("certificates")
+          .select("id, employees!inner(organization_id)", { count: "exact", head: true })
+          .eq("employees.organization_id", orgId)
+          .gte("issued_at", monthStart.toISOString()),
+      ]);
+      orgMembers = membersRes.count ?? 0;
+      orgCompletions = certsThisMonth.count ?? 0;
+    }
+
+    if (roleList.some((r) => REVIEWER_ROLES.has(r))) {
+      const { count } = await supabase
+        .from("assignment_submissions")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "submitted");
+      pendingReviews = count ?? 0;
+    }
 
     return {
       employee: employee.data,
-      roles: (roles.data ?? []).map((r) => r.role),
+      roles: roleList,
       completedCount: completedLessonIds.size,
       pendingCount,
       certificates: certs.data ?? [],
       announcements: announcements.data ?? [],
       courses: courses.data ?? [],
+      orgMembers,
+      orgCompletions,
+      pendingReviews,
     };
   });
 
@@ -44,7 +127,9 @@ export const listCatalog = createServerFn({ method: "GET" })
 
 export const getCourse = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { slug: string }) => z.object({ slug: z.string().min(1).max(120) }).parse(data))
+  .inputValidator((data: { slug: string }) =>
+    z.object({ slug: z.string().min(1).max(120) }).parse(data),
+  )
   .handler(async ({ data, context }) => {
     const { data: course } = await context.supabase
       .from("courses")
@@ -73,7 +158,9 @@ export const getCourse = createServerFn({ method: "GET" })
 
 export const getLesson = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { lessonId: string }) => z.object({ lessonId: z.string().uuid() }).parse(data))
+  .inputValidator((data: { lessonId: string }) =>
+    z.object({ lessonId: z.string().uuid() }).parse(data),
+  )
   .handler(async ({ data, context }) => {
     const { data: lesson } = await context.supabase
       .from("lessons")
@@ -106,10 +193,17 @@ export const getLesson = createServerFn({ method: "GET" })
 
 export const markLessonComplete = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { lessonId: string }) => z.object({ lessonId: z.string().uuid() }).parse(data))
+  .inputValidator((data: { lessonId: string }) =>
+    z.object({ lessonId: z.string().uuid() }).parse(data),
+  )
   .handler(async ({ data, context }) => {
     await context.supabase.from("lesson_progress").upsert(
-      { user_id: context.userId, lesson_id: data.lessonId, completed_at: new Date().toISOString(), watched_seconds: 0 },
+      {
+        user_id: context.userId,
+        lesson_id: data.lessonId,
+        completed_at: new Date().toISOString(),
+        watched_seconds: 0,
+      },
       { onConflict: "user_id,lesson_id" },
     );
     return { ok: true };
@@ -122,7 +216,11 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: quiz } = await supabaseAdmin.from("quizzes").select("*").eq("id", data.quizId).maybeSingle();
+    const { data: quiz } = await supabaseAdmin
+      .from("quizzes")
+      .select("*")
+      .eq("id", data.quizId)
+      .maybeSingle();
     if (!quiz) throw new Error("Quiz not found");
 
     const { data: questions } = await supabaseAdmin
@@ -156,11 +254,18 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
 
 export const submitQuizAttempt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { attemptId: string; answers: { questionId: string; optionId: string | null }[] }) =>
-    z.object({
-      attemptId: z.string().uuid(),
-      answers: z.array(z.object({ questionId: z.string().uuid(), optionId: z.string().uuid().nullable() })).max(200),
-    }).parse(data),
+  .inputValidator(
+    (data: { attemptId: string; answers: { questionId: string; optionId: string | null }[] }) =>
+      z
+        .object({
+          attemptId: z.string().uuid(),
+          answers: z
+            .array(
+              z.object({ questionId: z.string().uuid(), optionId: z.string().uuid().nullable() }),
+            )
+            .max(200),
+        })
+        .parse(data),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -187,7 +292,12 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
     const rows = data.answers.map((a) => {
       const isCorrect = correctByQ.get(a.questionId) === a.optionId;
       if (isCorrect) correct++;
-      return { attempt_id: data.attemptId, question_id: a.questionId, selected_option_id: a.optionId, is_correct: isCorrect };
+      return {
+        attempt_id: data.attemptId,
+        question_id: a.questionId,
+        selected_option_id: a.optionId,
+        is_correct: isCorrect,
+      };
     });
     if (rows.length) await supabaseAdmin.from("attempt_answers").insert(rows);
 
@@ -213,17 +323,26 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
         certCode = existing.cert_code;
       } else {
         const code = `TA-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-        const { data: inserted } = await supabaseAdmin.from("certificates").insert({
-          user_id: context.userId,
-          course_id: attempt.quizzes.course_id,
-          cert_code: code,
-          score_percent: score,
-        }).select("cert_code").single();
+        const { data: inserted } = await supabaseAdmin
+          .from("certificates")
+          .insert({
+            user_id: context.userId,
+            course_id: attempt.quizzes.course_id,
+            cert_code: code,
+            score_percent: score,
+          })
+          .select("cert_code")
+          .single();
         certCode = inserted?.cert_code ?? code;
       }
       if (attempt.quizzes.lesson_id) {
         await supabaseAdmin.from("lesson_progress").upsert(
-          { user_id: context.userId, lesson_id: attempt.quizzes.lesson_id, completed_at: new Date().toISOString(), watched_seconds: 0 },
+          {
+            user_id: context.userId,
+            lesson_id: attempt.quizzes.lesson_id,
+            completed_at: new Date().toISOString(),
+            watched_seconds: 0,
+          },
           { onConflict: "user_id,lesson_id" },
         );
       }
@@ -248,12 +367,16 @@ export const listMyCertificates = createServerFn({ method: "GET" })
 // function projects only non-sensitive verification fields (no score, no
 // expiry, no user_id) using the service-role client.
 export const verifyCertificate = createServerFn({ method: "GET" })
-  .inputValidator((data: { code: string }) => z.object({ code: z.string().trim().max(64) }).parse(data))
+  .inputValidator((data: { code: string }) =>
+    z.object({ code: z.string().trim().max(64) }).parse(data),
+  )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await supabaseAdmin
       .from("certificates")
-      .select("cert_code,issued_at,courses(title),employees!certificates_user_id_fkey(full_name,centers(name))")
+      .select(
+        "cert_code,issued_at,courses(title),employees!certificates_user_id_fkey(full_name,centers(name))",
+      )
       .eq("cert_code", data.code)
       .maybeSingle();
     if (!row) return { cert: null };

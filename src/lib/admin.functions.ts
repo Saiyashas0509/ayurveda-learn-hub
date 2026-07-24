@@ -154,7 +154,11 @@ export const setUserRole = createServerFn({ method: "POST" })
       metadata: { role: data.role },
     });
     if (isAdminRole(data.role)) {
-      const { data: emp } = await supabaseAdmin.from("employees").select("email").eq("id", data.userId).maybeSingle();
+      const { data: emp } = await supabaseAdmin
+        .from("employees")
+        .select("email")
+        .eq("id", data.userId)
+        .maybeSingle();
       if (emp?.email) await sendAdminPasswordSetupEmail(emp.email);
     }
     return { ok: true };
@@ -292,10 +296,14 @@ export const listEmployees = createServerFn({ method: "GET" })
     await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // user_roles.user_id references auth.users, not employees, so there's no
+    // FK PostgREST can embed on — the previous `user_roles(role)` select
+    // silently failed the whole query (PGRST200) and made this page always
+    // show zero employees. Fetch roles separately and merge them in JS.
     let q = supabaseAdmin
       .from("employees")
       .select(
-        "id,email,full_name,status,designation,employee_code,center_id,created_at,centers(name),user_roles(role)",
+        "id,email,full_name,status,designation,employee_code,center_id,created_at,centers(name)",
         { count: "exact" },
       )
       .order("created_at", { ascending: false });
@@ -314,16 +322,22 @@ export const listEmployees = createServerFn({ method: "GET" })
     const { data: rows, count, error } = await q;
     if (error) throw new Error(error.message);
 
-    // Role filtering happens post-fetch since it's on a joined table; for typical
-    // admin panel sizes this is fine, and role is rarely combined with pagination edge cases.
+    const ids = (rows ?? []).map((r) => r.id);
+    const { data: rolesRows } = ids.length
+      ? await supabaseAdmin.from("user_roles").select("user_id,role").in("user_id", ids)
+      : { data: [] as { user_id: string; role: string }[] };
+    const rolesByUser = new Map<string, { role: string }[]>();
+    for (const r of rolesRows ?? []) {
+      const list = rolesByUser.get(r.user_id) ?? [];
+      list.push({ role: r.role });
+      rolesByUser.set(r.user_id, list);
+    }
+    const withRoles = (rows ?? []).map((r) => ({ ...r, user_roles: rolesByUser.get(r.id) ?? [] }));
+
     const filtered =
       data.role === "all"
-        ? (rows ?? [])
-        : (rows ?? []).filter((r) =>
-            (r.user_roles as unknown as { role: string }[] | null)?.some(
-              (ur) => ur.role === data.role,
-            ),
-          );
+        ? withRoles
+        : withRoles.filter((r) => r.user_roles.some((ur) => ur.role === data.role));
 
     return {
       rows: filtered,

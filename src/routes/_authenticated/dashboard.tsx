@@ -25,10 +25,12 @@ function Dashboard() {
   const total = data.completedCount + data.pendingCount;
   const pct = total > 0 ? Math.round((data.completedCount / total) * 100) : 0;
   const firstName = data.employee?.full_name?.split(" ")[0] ?? "there";
-  const primaryRole = (data.employee as { primary_role?: AppRole } | null | undefined)?.primary_role
-    ?? (data.roles.length ? pickPrimaryRole(data.roles as AppRole[]) : "student");
+  const primaryRole =
+    (data.employee as { primary_role?: AppRole } | null | undefined)?.primary_role ??
+    (data.roles.length ? pickPrimaryRole(data.roles as AppRole[]) : "student");
   const roleLabel = ROLE_LABELS[primaryRole];
-  const centerName = (data.employee as { centers?: { name?: string } } | null | undefined)?.centers?.name ?? "—";
+  const centerName =
+    (data.employee as { centers?: { name?: string } } | null | undefined)?.centers?.name ?? "—";
   const view = ROLE_VIEWS[primaryRole];
 
   const statValues: Record<StatKey, number> = {
@@ -36,10 +38,10 @@ function Dashboard() {
     inProgress: data.pendingCount,
     certificates: data.certificates.length,
     availableCourses: data.courses.length,
-    orgMembers: (data as { orgMembers?: number }).orgMembers ?? 0,
+    orgMembers: data.orgMembers,
     orgCourses: data.courses.length,
-    orgCompletions: (data as { orgCompletions?: number }).orgCompletions ?? 0,
-    pendingReviews: (data as { pendingReviews?: number }).pendingReviews ?? 0,
+    orgCompletions: data.orgCompletions,
+    pendingReviews: data.pendingReviews,
   };
   const statIcons: Record<StatKey, React.ElementType> = {
     completedLessons: CheckCircle2,
@@ -58,7 +60,9 @@ function Dashboard() {
       <div className="bg-hero shadow-elevated relative overflow-hidden rounded-2xl p-8 text-primary-foreground">
         <div className="relative z-10">
           <p className="text-xs uppercase tracking-[0.2em] text-gold">Welcome back</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold sm:text-4xl">Hello, {firstName}</h1>
+          <h1 className="mt-2 font-display text-3xl font-semibold sm:text-4xl">
+            Hello, {firstName}
+          </h1>
           <p className="mt-2 max-w-xl text-primary-foreground/80">
             {roleLabel} · {centerName}
           </p>
@@ -113,7 +117,9 @@ function Dashboard() {
                 className="group rounded-xl border border-border bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elevated"
               >
                 <p className="text-xs font-medium uppercase tracking-widest text-gold">Course</p>
-                <h3 className="mt-2 font-display text-lg font-semibold group-hover:text-primary">{c.title}</h3>
+                <h3 className="mt-2 font-display text-lg font-semibold group-hover:text-primary">
+                  {c.title}
+                </h3>
                 <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
                   <BookOpen className="h-3.5 w-3.5" /> Ayurvedic training module
                 </div>
@@ -148,7 +154,9 @@ function Dashboard() {
               </div>
             ))}
             {data.announcements.length === 0 && (
-              <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No announcements.</p>
+              <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                No announcements.
+              </p>
             )}
           </div>
         </div>
