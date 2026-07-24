@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { requestVideoDelete, requestVideoUpload } from "@/lib/video-upload.functions";
 
 export const VIDEO_BASE_URL = "https://videos.travancoreayurvedalearning.com/";
 
@@ -28,23 +28,23 @@ export function filenameFromVideoUrl(url: string): string {
   return url;
 }
 
-// Uploads a lesson video directly to Hostinger (the same server that backs
-// videos.travancoreayurvedalearning.com) via the admin-only /api/admin/upload-video
-// route, which streams the request body straight to FTP — no Supabase Storage
-// involved, and no 50MB size cap. Returns the public URL to store on the lesson.
+// Uploads a lesson video straight to Hostinger from the browser — the Worker
+// only issues a short-lived signed token (requestVideoUpload) authorizing
+// this one filename, it never streams the file itself. That matters because
+// Cloudflare's edge caps proxied request bodies well below typical lesson
+// video sizes; going Worker-side for the actual bytes made large uploads fail
+// unpredictably. Returns the public URL to store on the lesson.
 export async function uploadVideoToHostinger(
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error("Not signed in");
+  const { uploadUrl, filename, exp, sig } = await requestVideoUpload({
+    data: { filename: file.name },
+  });
 
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/admin/upload-video?filename=${encodeURIComponent(file.name)}`, true);
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.open("POST", uploadUrl, true);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
     };
@@ -62,20 +62,30 @@ export async function uploadVideoToHostinger(
       }
     };
     xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.send(file);
+
+    const form = new FormData();
+    form.append("filename", filename);
+    form.append("exp", String(exp));
+    form.append("sig", sig);
+    form.append("file", file);
+    xhr.send(form);
   });
 }
 
 export async function deleteHostingerVideo(publicUrl: string): Promise<void> {
-  const filename = publicUrl.split("/").pop();
-  if (!filename) return;
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error("Not signed in");
+  const filename = filenameFromVideoUrl(publicUrl);
+  if (!filename || /^https?:\/\//i.test(filename)) return;
 
-  const res = await fetch(`/api/admin/upload-video?filename=${encodeURIComponent(filename)}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const { uploadUrl, exp, sig } = await requestVideoDelete({ data: { filename } });
+
+  const form = new FormData();
+  form.append("action", "delete");
+  form.append("filename", filename);
+  form.append("exp", String(exp));
+  form.append("sig", sig);
+
+  const res = await fetch(uploadUrl, { method: "POST", body: form });
   if (!res.ok) throw new Error("Delete failed");
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+  if (!body.ok) throw new Error(body.error ?? "Delete failed");
 }
