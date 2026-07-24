@@ -473,12 +473,19 @@ export const getSignedDownloadUrl = createServerFn({ method: "POST" })
   .inputValidator((data: { bucket: string; path: string }) =>
     z.object({ bucket: z.string(), path: z.string() }).parse(data),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: signed, error } = await supabaseAdmin.storage
       .from(data.bucket)
       .createSignedUrl(data.path, 600);
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "resource_downloaded",
+      target: data.path,
+      metadata: { bucket: data.bucket },
+    });
     return { url: signed.signedUrl };
   });
 

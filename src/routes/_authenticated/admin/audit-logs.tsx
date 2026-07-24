@@ -19,6 +19,7 @@ import {
   EMPTY_ROW,
 } from "@/components/admin/table";
 import { ScrollText, LogIn } from "lucide-react";
+import { formatDuration, summarizeUserAgent, formatLocation } from "@/lib/activity-format";
 
 export const Route = createFileRoute("/_authenticated/admin/audit-logs")({
   component: AuditLogs,
@@ -50,37 +51,6 @@ function AuditLogs() {
   );
 }
 
-function formatDuration(startIso: string, endIso: string): string {
-  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
-  const mins = Math.round(ms / 60000);
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  const rem = mins % 60;
-  return `${hrs}h ${rem}m`;
-}
-
-// Lightweight UA -> "Browser on OS" summary. Not exhaustive, just readable —
-// good enough for an admin activity log, not a full device-detection library.
-function summarizeUserAgent(ua: string | null): string {
-  if (!ua) return "—";
-  let os = "Unknown OS";
-  if (/windows/i.test(ua)) os = "Windows";
-  else if (/iphone|ipad/i.test(ua)) os = "iOS";
-  else if (/mac os x/i.test(ua)) os = "macOS";
-  else if (/android/i.test(ua)) os = "Android";
-  else if (/linux/i.test(ua)) os = "Linux";
-
-  let browser = "Unknown browser";
-  if (/edg\//i.test(ua)) browser = "Edge";
-  else if (/chrome\//i.test(ua) && !/chromium/i.test(ua)) browser = "Chrome";
-  else if (/crios\//i.test(ua)) browser = "Chrome";
-  else if (/firefox\//i.test(ua)) browser = "Firefox";
-  else if (/safari\//i.test(ua) && /version\//i.test(ua)) browser = "Safari";
-  else if (/opr\//i.test(ua)) browser = "Opera";
-
-  return `${browser} on ${os}`;
-}
-
 function LoginActivity() {
   const fn = useServerFn(listLoginActivity);
   const { data, isLoading } = useQuery({
@@ -99,6 +69,7 @@ function LoginActivity() {
             <th className={TH}>Logged out</th>
             <th className={TH}>Duration</th>
             <th className={TH}>IP address</th>
+            <th className={TH}>Location</th>
             <th className={TH}>Device / Browser</th>
           </tr>
         </thead>
@@ -136,13 +107,16 @@ function LoginActivity() {
               </td>
               <td className={`${TD_MUTED} whitespace-nowrap font-mono text-xs`}>{s.ip ?? "—"}</td>
               <td className={`${TD_MUTED} whitespace-nowrap text-xs`}>
+                {formatLocation(s.city, s.country)}
+              </td>
+              <td className={`${TD_MUTED} whitespace-nowrap text-xs`}>
                 {summarizeUserAgent(s.userAgent)}
               </td>
             </tr>
           ))}
           {!isLoading && (!data || data.length === 0) && (
             <tr>
-              <td colSpan={7} className={EMPTY_ROW}>
+              <td colSpan={8} className={EMPTY_ROW}>
                 <LogIn className="mx-auto mb-2 h-6 w-6" />
                 No login activity recorded yet.
               </td>

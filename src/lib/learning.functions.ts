@@ -199,6 +199,14 @@ export const getLesson = createServerFn({ method: "GET" })
       }
     }
 
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: (context.claims as { email?: string }).email ?? null,
+      action: "lesson_viewed",
+      target: lesson.id,
+      metadata: { title: lesson.title, courseId: lesson.course_id },
+    });
+
     return { lesson: { ...lesson, video_url: videoUrl }, quiz };
   });
 
@@ -217,6 +225,12 @@ export const markLessonComplete = createServerFn({ method: "POST" })
       },
       { onConflict: "user_id,lesson_id" },
     );
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: (context.claims as { email?: string }).email ?? null,
+      action: "lesson_completed",
+      target: data.lessonId,
+    });
     return { ok: true };
   });
 
@@ -358,6 +372,14 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
         );
       }
     }
+
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: (context.claims as { email?: string }).email ?? null,
+      action: "quiz_attempt_submitted",
+      target: data.attemptId,
+      metadata: { quizId: attempt.quiz_id, score, passed },
+    });
 
     return { score, passed, certCode };
   });

@@ -48,6 +48,7 @@ import { Route as AuthenticatedAdminAuditLogsRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
 import { Route as AuthenticatedAdminCoursesIndexRouteImport } from './routes/_authenticated/admin/courses.index'
 import { Route as AuthenticatedDiscussionsThreadThreadIdRouteImport } from './routes/_authenticated/discussions.thread.$threadId'
+import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users.$userId'
 import { Route as AuthenticatedAdminCoursesCourseIdRouteImport } from './routes/_authenticated/admin/courses.$courseId'
 
 const SetupRoute = SetupRouteImport.update({
@@ -258,6 +259,12 @@ const AuthenticatedDiscussionsThreadThreadIdRoute =
     path: '/discussions/thread/$threadId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminUsersUserIdRoute =
+  AuthenticatedAdminUsersUserIdRouteImport.update({
+    id: '/$userId',
+    path: '/$userId',
+    getParentRoute: () => AuthenticatedAdminUsersRoute,
+  } as any)
 const AuthenticatedAdminCoursesCourseIdRoute =
   AuthenticatedAdminCoursesCourseIdRouteImport.update({
     id: '/admin/courses/$courseId',
@@ -288,7 +295,7 @@ export interface FileRoutesByFullPath {
   '/admin/live': typeof AuthenticatedAdminLiveRoute
   '/admin/organizations': typeof AuthenticatedAdminOrganizationsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
-  '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRouteWithChildren
   '/assignments/$assignmentId': typeof AuthenticatedAssignmentsAssignmentIdRoute
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
   '/discussions/$courseId': typeof AuthenticatedDiscussionsCourseIdRoute
@@ -303,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/assignments/': typeof AuthenticatedAssignmentsIndexRoute
   '/live/': typeof AuthenticatedLiveIndexRoute
   '/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
+  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/discussions/thread/$threadId': typeof AuthenticatedDiscussionsThreadThreadIdRoute
   '/admin/courses/': typeof AuthenticatedAdminCoursesIndexRoute
 }
@@ -328,7 +336,7 @@ export interface FileRoutesByTo {
   '/admin/live': typeof AuthenticatedAdminLiveRoute
   '/admin/organizations': typeof AuthenticatedAdminOrganizationsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
-  '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRouteWithChildren
   '/assignments/$assignmentId': typeof AuthenticatedAssignmentsAssignmentIdRoute
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
   '/discussions/$courseId': typeof AuthenticatedDiscussionsCourseIdRoute
@@ -343,6 +351,7 @@ export interface FileRoutesByTo {
   '/assignments': typeof AuthenticatedAssignmentsIndexRoute
   '/live': typeof AuthenticatedLiveIndexRoute
   '/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
+  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/discussions/thread/$threadId': typeof AuthenticatedDiscussionsThreadThreadIdRoute
   '/admin/courses': typeof AuthenticatedAdminCoursesIndexRoute
 }
@@ -371,7 +380,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/live': typeof AuthenticatedAdminLiveRoute
   '/_authenticated/admin/organizations': typeof AuthenticatedAdminOrganizationsRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
-  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRouteWithChildren
   '/_authenticated/assignments/$assignmentId': typeof AuthenticatedAssignmentsAssignmentIdRoute
   '/_authenticated/courses/$slug': typeof AuthenticatedCoursesSlugRoute
   '/_authenticated/discussions/$courseId': typeof AuthenticatedDiscussionsCourseIdRoute
@@ -386,6 +395,7 @@ export interface FileRoutesById {
   '/_authenticated/assignments/': typeof AuthenticatedAssignmentsIndexRoute
   '/_authenticated/live/': typeof AuthenticatedLiveIndexRoute
   '/_authenticated/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
+  '/_authenticated/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
   '/_authenticated/discussions/thread/$threadId': typeof AuthenticatedDiscussionsThreadThreadIdRoute
   '/_authenticated/admin/courses/': typeof AuthenticatedAdminCoursesIndexRoute
 }
@@ -429,6 +439,7 @@ export interface FileRouteTypes {
     | '/assignments/'
     | '/live/'
     | '/admin/courses/$courseId'
+    | '/admin/users/$userId'
     | '/discussions/thread/$threadId'
     | '/admin/courses/'
   fileRoutesByTo: FileRoutesByTo
@@ -469,6 +480,7 @@ export interface FileRouteTypes {
     | '/assignments'
     | '/live'
     | '/admin/courses/$courseId'
+    | '/admin/users/$userId'
     | '/discussions/thread/$threadId'
     | '/admin/courses'
   id:
@@ -511,6 +523,7 @@ export interface FileRouteTypes {
     | '/_authenticated/assignments/'
     | '/_authenticated/live/'
     | '/_authenticated/admin/courses/$courseId'
+    | '/_authenticated/admin/users/$userId'
     | '/_authenticated/discussions/thread/$threadId'
     | '/_authenticated/admin/courses/'
   fileRoutesById: FileRoutesById
@@ -801,6 +814,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDiscussionsThreadThreadIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/users/$userId': {
+      id: '/_authenticated/admin/users/$userId'
+      path: '/$userId'
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AuthenticatedAdminUsersUserIdRouteImport
+      parentRoute: typeof AuthenticatedAdminUsersRoute
+    }
     '/_authenticated/admin/courses/$courseId': {
       id: '/_authenticated/admin/courses/$courseId'
       path: '/admin/courses/$courseId'
@@ -810,6 +830,20 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AuthenticatedAdminUsersRouteChildren {
+  AuthenticatedAdminUsersUserIdRoute: typeof AuthenticatedAdminUsersUserIdRoute
+}
+
+const AuthenticatedAdminUsersRouteChildren: AuthenticatedAdminUsersRouteChildren =
+  {
+    AuthenticatedAdminUsersUserIdRoute: AuthenticatedAdminUsersUserIdRoute,
+  }
+
+const AuthenticatedAdminUsersRouteWithChildren =
+  AuthenticatedAdminUsersRoute._addFileChildren(
+    AuthenticatedAdminUsersRouteChildren,
+  )
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
@@ -825,7 +859,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminLiveRoute: typeof AuthenticatedAdminLiveRoute
   AuthenticatedAdminOrganizationsRoute: typeof AuthenticatedAdminOrganizationsRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
-  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRouteWithChildren
   AuthenticatedAssignmentsAssignmentIdRoute: typeof AuthenticatedAssignmentsAssignmentIdRoute
   AuthenticatedCoursesSlugRoute: typeof AuthenticatedCoursesSlugRoute
   AuthenticatedDiscussionsCourseIdRoute: typeof AuthenticatedDiscussionsCourseIdRoute
@@ -855,7 +889,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminLiveRoute: AuthenticatedAdminLiveRoute,
   AuthenticatedAdminOrganizationsRoute: AuthenticatedAdminOrganizationsRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
-  AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRouteWithChildren,
   AuthenticatedAssignmentsAssignmentIdRoute:
     AuthenticatedAssignmentsAssignmentIdRoute,
   AuthenticatedCoursesSlugRoute: AuthenticatedCoursesSlugRoute,

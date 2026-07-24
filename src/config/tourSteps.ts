@@ -23,9 +23,33 @@ export const EMPLOYEE_TOUR_STEPS: TourStep[] = [
     opensSidebar: true,
   },
   {
+    target: '[data-tour="nav-/live"]',
+    title: "Live Classes",
+    body: "Scheduled live sessions for your courses appear here — join right from this page when one starts.",
+    opensSidebar: true,
+  },
+  {
+    target: '[data-tour="nav-/calendar"]',
+    title: "Calendar",
+    body: "See upcoming live classes and assignment deadlines at a glance.",
+    opensSidebar: true,
+  },
+  {
+    target: '[data-tour="nav-/notifications"]',
+    title: "Notifications",
+    body: "Announcements, grading results, and reminders show up here.",
+    opensSidebar: true,
+  },
+  {
     target: '[data-tour="nav-/certificates"]',
     title: "Certificates",
     body: "Completed courses generate a certificate automatically, viewable and verifiable here.",
+    opensSidebar: true,
+  },
+  {
+    target: '[data-tour="nav-/profile"]',
+    title: "My Profile",
+    body: "Your role, center, and designation — managed by HR. Contact your administrator if anything needs updating.",
     opensSidebar: true,
   },
   {
@@ -45,7 +69,7 @@ export const ADMIN_TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="nav-/admin/users"]',
     title: "Users",
-    body: "See every employee, their role and center, disable an account, or add a new employee directly.",
+    body: "See every employee, their role and center, disable an account, or add a new employee directly. Click any employee's name to open their full profile — registration details, login history (IP, device, location), and a complete activity log.",
     opensSidebar: true,
   },
   {
@@ -57,13 +81,19 @@ export const ADMIN_TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="nav-/admin/courses"]',
     title: "Course Builder",
-    body: "Create courses, add lessons, and drop in videos (drag-and-drop, or just type the filename). Duration is detected automatically.",
+    body: "Create courses, add lessons, and drop in videos (drag-and-drop, or just type the filename). Duration is detected automatically, and you can add or remove a cover image for each course.",
+    opensSidebar: true,
+  },
+  {
+    target: '[data-tour="nav-/admin/submissions"]',
+    title: "Grading",
+    body: "Review and grade submitted assignments here.",
     opensSidebar: true,
   },
   {
     target: '[data-tour="nav-/admin/audit-logs"]',
     title: "Audit Logs",
-    body: "Track who's signed in and for how long under Login Activity, plus a full record of admin actions.",
+    body: "Login Activity shows who's signed in, for how long, and from where (IP, device, approximate location). All Events is the complete admin action trail — course changes, role assignments, everything.",
     opensSidebar: true,
   },
   {

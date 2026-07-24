@@ -226,6 +226,21 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+// Cloudflare attaches approximate geolocation to every request via `request.cf`
+// — free, no external API call needed. That property doesn't survive into
+// TanStack Start's request wrapping, so it's forwarded as headers instead;
+// server functions read it back via getClientInfo() in lib/audit.ts.
+function withGeoHeaders(request: Request): Request {
+  const cf = (request as unknown as { cf?: { city?: string; country?: string; region?: string } })
+    .cf;
+  if (!cf) return request;
+  const headers = new Headers(request.headers);
+  if (cf.city) headers.set("x-geo-city", cf.city);
+  if (cf.country) headers.set("x-geo-country", cf.country);
+  if (cf.region) headers.set("x-geo-region", cf.region);
+  return new Request(request, { headers });
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
@@ -236,7 +251,7 @@ export default {
       if (uploadResponse) return uploadResponse;
 
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const response = await handler.fetch(withGeoHeaders(request), env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       console.error(error);

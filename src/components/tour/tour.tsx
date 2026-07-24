@@ -13,9 +13,10 @@ export type TourStep = {
 
 type Rect = { top: number; left: number; width: number; height: number };
 
-function getRect(selector: string): Rect | null {
+function getRect(selector: string, scrollIntoView: boolean): Rect | null {
   const el = document.querySelector(selector);
   if (!el) return null;
+  if (scrollIntoView) el.scrollIntoView({ block: "nearest" });
   const r = el.getBoundingClientRect();
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }
@@ -43,15 +44,17 @@ export function Tour({
 
   useLayoutEffect(() => {
     if (!step) return;
-    const measure = () => setRect(getRect(step.target));
-    // Wait a tick for the sidebar-open transition/DOM update before measuring.
-    const raf = requestAnimationFrame(() => requestAnimationFrame(measure));
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
+    const measureInPlace = () => setRect(getRect(step.target, false));
+    const measureAndScroll = () => setRect(getRect(step.target, true));
+    // Wait a tick for the sidebar-open transition/DOM update, then scroll the
+    // target into view (it may be below the fold in a long nav list) before measuring.
+    const raf = requestAnimationFrame(() => requestAnimationFrame(measureAndScroll));
+    window.addEventListener("resize", measureInPlace);
+    window.addEventListener("scroll", measureInPlace, true);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measureInPlace);
+      window.removeEventListener("scroll", measureInPlace, true);
     };
   }, [step]);
 
@@ -69,10 +72,13 @@ export function Tour({
   // else just centered on screen (also the fallback when target isn't found).
   const tooltipStyle: React.CSSProperties = rect
     ? rect.left + rect.width + 340 < window.innerWidth
-      ? { top: Math.max(16, rect.top), left: rect.left + rect.width + 16 }
+      ? {
+          top: Math.min(Math.max(16, rect.top), window.innerHeight - 260),
+          left: rect.left + rect.width + 16,
+        }
       : {
-          top: Math.min(rect.top + rect.height + 12, window.innerHeight - 220),
-          left: Math.max(16, rect.left),
+          top: Math.min(rect.top + rect.height + 12, window.innerHeight - 260),
+          left: Math.max(16, Math.min(rect.left, window.innerWidth - 336)),
         }
     : { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
 

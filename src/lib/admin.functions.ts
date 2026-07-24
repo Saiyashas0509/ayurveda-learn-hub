@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { ADMIN_ONLY_ROLES, type AppRole } from "@/lib/auth-helpers";
 import { getSiteOrigin } from "@/lib/site-origin";
+import { pairLoginSessions, type JsonMetadata } from "@/lib/login-sessions";
 
 async function assertAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -398,57 +399,74 @@ export const listLoginActivity = createServerFn({ method: "GET" })
     for (const r of rolesRows ?? [])
       if (!roleByUserId.has(r.user_id)) roleByUserId.set(r.user_id, r.role);
 
-    type RawEvent = {
-      actor_id: string | null;
-      action: string;
-      created_at: string;
-      ip: string | null;
-      metadata: Record<string, unknown> | null;
-    };
-    const byUser = new Map<string, RawEvent[]>();
-    for (const row of events ?? []) {
-      const key = row.actor_email ?? row.actor_id ?? "unknown";
-      const list = byUser.get(key) ?? [];
-      list.push({ ...row, metadata: row.metadata as Record<string, unknown> | null });
-      byUser.set(key, list);
-    }
-
-    type Session = {
-      email: string;
-      fullName: string | null;
-      role: string | null;
-      loginAt: string;
-      logoutAt: string | null;
-      ip: string | null;
-      userAgent: string | null;
-      method: string | null;
-    };
-    const toSession = (email: string, open: RawEvent, logoutAt: string | null): Session => ({
-      email,
-      fullName: nameByEmail.get(email) ?? null,
-      role: open.actor_id ? (roleByUserId.get(open.actor_id) ?? null) : null,
-      loginAt: open.created_at,
-      logoutAt,
-      ip: open.ip,
-      userAgent: (open.metadata?.user_agent as string | undefined) ?? null,
-      method: (open.metadata?.method as string | undefined) ?? null,
-    });
-
-    const sessions: Session[] = [];
-    for (const [email, userEvents] of byUser) {
-      let openLogin: RawEvent | null = null;
-      for (const ev of userEvents) {
-        if (ev.action === "login_success") {
-          if (openLogin) sessions.push(toSession(email, openLogin, null));
-          openLogin = ev;
-        } else if (ev.action === "logout" && openLogin) {
-          sessions.push(toSession(email, openLogin, ev.created_at));
-          openLogin = null;
-        }
-      }
-      if (openLogin) sessions.push(toSession(email, openLogin, null));
-    }
-
-    sessions.sort((a, b) => b.loginAt.localeCompare(a.loginAt));
+    const sessions = pairLoginSessions(
+      (events ?? []).map((e) => ({
+        ...e,
+        metadata: e.metadata as Record<string, JsonMetadata> | null,
+      })),
+      { nameByEmail, roleByUserId },
+    );
     return sessions.slice(0, 300);
+  });
+
+// Everything admins need to see about one employee in a single call: their
+// registration/onboarding answers, login status + history, and full activity
+// trail (courses viewed/completed, quizzes, edits, downloads, everything
+// logAudit() records).
+export const getUserActivityProfile = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { userId: string }) => z.object({ userId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const [{ data: employee }, { data: roles }] = await Promise.all([
+      supabaseAdmin
+        .from("employees")
+        .select(
+          "id,email,full_name,phone,designation,employee_code,status,primary_role,learning_interests,organization_id,center_id,onboarding_completed_at,created_at,centers(name),organizations(name,org_type)",
+        )
+        .eq("id", data.userId)
+        .maybeSingle(),
+      supabaseAdmin.from("user_roles").select("role").eq("user_id", data.userId),
+    ]);
+    if (!employee) throw new Error("User not found");
+
+    const { data: loginEvents } = await supabaseAdmin
+      .from("audit_logs")
+      .select("actor_id,actor_email,action,created_at,ip,metadata")
+      .eq("actor_id", data.userId)
+      .in("action", ["login_success", "logout"])
+      .order("created_at", { ascending: true })
+      .limit(1000);
+
+    const roleByUserId = new Map<string, string>([[data.userId, employee.primary_role ?? ""]]);
+    const nameByEmail = new Map([[employee.email, employee.full_name]]);
+    const sessions = pairLoginSessions(
+      (loginEvents ?? []).map((e) => ({
+        ...e,
+        metadata: e.metadata as Record<string, JsonMetadata> | null,
+      })),
+      { nameByEmail, roleByUserId },
+    );
+    const isOnline = sessions.length > 0 && sessions[0].logoutAt === null;
+
+    const { data: activityLog } = await supabaseAdmin
+      .from("audit_logs")
+      .select("id,action,target,created_at,ip,metadata")
+      .eq("actor_id", data.userId)
+      .order("created_at", { ascending: false })
+      .limit(300);
+
+    return {
+      employee,
+      roles: (roles ?? []).map((r) => r.role),
+      isOnline,
+      lastLogin: sessions[0] ?? null,
+      sessions: sessions.slice(0, 100),
+      activityLog: (activityLog ?? []).map((a) => ({
+        ...a,
+        metadata: a.metadata as Record<string, JsonMetadata> | null,
+      })),
+    };
   });

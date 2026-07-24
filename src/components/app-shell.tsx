@@ -13,10 +13,12 @@ import { Tour } from "@/components/tour/tour";
 import { EMPLOYEE_TOUR_STEPS, ADMIN_TOUR_STEPS } from "@/config/tourSteps";
 
 // The admin tour's steps target the full platform-admin nav (Users, Organizations,
-// Course Builder, Audit Logs) — only super_admin/hr_admin have every one of those
-// links in their sidebar, so that's who gets the admin tour. Everyone else (even
-// faculty/org-admin roles with partial admin access) gets the employee tour.
-const FULL_ADMIN_ROLES = new Set(["super_admin", "hr_admin"]);
+// Course Builder, Audit Logs). Rather than hardcode which roles have that full
+// set (easy to drift out of sync with roleViews.ts — this already happened
+// once), derive it directly from whether the resolved nav actually contains
+// that group. Everyone else (even faculty/org-admin roles with partial admin
+// access) gets the employee tour.
+const ADMIN_TOUR_MARKER = "/admin/audit-logs";
 
 const IDLE_MS = 30 * 60 * 1000; // 30 min auto logout
 
@@ -75,7 +77,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   });
 
   const roles = me?.roles ?? [];
-  const isFullAdmin = roles.some((r) => FULL_ADMIN_ROLES.has(r));
+  const primaryRole =
+    (me?.employee?.primary_role as AppRole | null) ??
+    (roles.length ? pickPrimaryRole(roles) : "student");
+  const view = ROLE_VIEWS[primaryRole];
+  const isFullAdmin = view.nav.some((group) => group.items.some((i) => i.to === ADMIN_TOUR_MARKER));
+
   const tourStorageKey = me?.userId
     ? `tour-seen:${isFullAdmin ? "admin" : "employee"}:${me.userId}`
     : null;
@@ -87,11 +94,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (tourStorageKey) localStorage.setItem(tourStorageKey, "1");
     setShowTour(false);
   };
-
-  const primaryRole =
-    (me?.employee?.primary_role as AppRole | null) ??
-    (roles.length ? pickPrimaryRole(roles) : "student");
-  const view = ROLE_VIEWS[primaryRole];
   const initials = (me?.employee?.full_name ?? "T A")
     .split(" ")
     .map((s) => s[0])

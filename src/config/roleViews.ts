@@ -76,6 +76,7 @@ const platformAdminGroup: NavGroup = {
   items: [
     { to: "/admin", label: "Admin Overview", icon: Shield },
     { to: "/admin/users", label: "Users", icon: User },
+    { to: "/admin/organizations", label: "Organizations", icon: Building2 },
     { to: "/admin/courses", label: "Course Builder", icon: Wrench },
     { to: "/admin/submissions", label: "Grading", icon: ClipboardCheck },
     { to: "/admin/live", label: "Schedule Class", icon: Video },

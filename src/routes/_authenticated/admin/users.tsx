@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
 import {
@@ -391,7 +391,15 @@ function UsersPage() {
                     aria-label={`Select ${u.full_name}`}
                   />
                 </td>
-                <td className={`${TD} font-medium`}>{u.full_name}</td>
+                <td className={`${TD} font-medium`}>
+                  <Link
+                    to="/admin/users/$userId"
+                    params={{ userId: u.id }}
+                    className="hover:text-primary hover:underline"
+                  >
+                    {u.full_name}
+                  </Link>
+                </td>
                 <td className={TD_MUTED}>{u.email}</td>
                 <td className={TD}>
                   {u.user_roles?.[0]?.role ? ROLE_LABELS[u.user_roles[0].role as AppRole] : "—"}
