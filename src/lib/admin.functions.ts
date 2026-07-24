@@ -260,6 +260,10 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     };
   });
 
+// Every role that can appear on an employee — used to validate the Users page's
+// role filter. Distinct from the narrower set setUserRole/createEmployeeUser
+// accept, which is about which roles an admin can directly assign (self-signup
+// roles like student/doctor are granted through onboarding, not this form).
 const EMPLOYEE_ROLE_ENUM = [
   "super_admin",
   "hr_admin",
@@ -269,7 +273,14 @@ const EMPLOYEE_ROLE_ENUM = [
   "therapist",
   "trainer",
   "auditor",
-] as const;
+  "student",
+  "doctor",
+  "franchise_owner",
+  "corporate_employee",
+  "hospital_staff",
+  "faculty",
+  "org_admin",
+] as const satisfies readonly AppRole[];
 
 export const listEmployees = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

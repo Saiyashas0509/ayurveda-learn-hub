@@ -47,7 +47,7 @@ import { toast } from "sonner";
 import { UserPlus, Ban, CheckCircle2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type AppRole } from "@/lib/auth-helpers";
 
-export const Route = createFileRoute("/_authenticated/admin/users")({
+export const Route = createFileRoute("/_authenticated/admin/users/")({
   component: UsersPage,
 });
 
@@ -69,17 +69,6 @@ type EmployeeRow = {
   centers: { name: string } | null;
   user_roles: { role: AppRole }[] | null;
 };
-
-const ADMIN_ASSIGNABLE_ROLES: AppRole[] = [
-  "super_admin",
-  "hr_admin",
-  "regional_manager",
-  "center_head_doctor",
-  "front_office",
-  "therapist",
-  "trainer",
-  "auditor",
-];
 
 function UsersPage() {
   const fn = useServerFn(listEmployees);
@@ -333,9 +322,9 @@ function UsersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All roles</SelectItem>
-            {ADMIN_ASSIGNABLE_ROLES.map((v) => (
+            {(Object.entries(ROLE_LABELS) as [AppRole, string][]).map(([v, l]) => (
               <SelectItem key={v} value={v}>
-                {ROLE_LABELS[v]}
+                {l}
               </SelectItem>
             ))}
           </SelectContent>

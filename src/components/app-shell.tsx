@@ -134,7 +134,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                       key={item.to}
                       to={item.to}
                       active={
-                        location.pathname === item.to || location.pathname.startsWith(item.to + "/")
+                        // "/admin" (and "/dashboard") are prefixes of every
+                        // other nested route in their section, so they need an
+                        // exact match — otherwise "Admin Overview" stays lit up
+                        // no matter which admin page is actually open.
+                        item.to === "/admin" || item.to === "/dashboard"
+                          ? location.pathname === item.to
+                          : location.pathname === item.to ||
+                            location.pathname.startsWith(item.to + "/")
                       }
                       onClick={() => setOpen(false)}
                     >
