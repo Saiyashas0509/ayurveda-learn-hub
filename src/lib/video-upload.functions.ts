@@ -62,3 +62,21 @@ export const requestVideoDelete = createServerFn({ method: "POST" })
     const { exp, sig } = await signUploadToken("delete", filename, secret);
     return { uploadUrl: VIDEO_UPLOAD_URL, filename, exp, sig };
   });
+
+// Authorizes reading the duration of a video that's already on Hostinger
+// (used for the "type an existing filename" path and for backfilling older
+// lessons) — same signed-token pattern as upload/delete.
+export const requestVideoDuration = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { filename: string }) =>
+    z.object({ filename: z.string().trim().min(1).max(255) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertFaculty(context.userId);
+    const secret = process.env.HOSTINGER_UPLOAD_SECRET;
+    if (!secret) throw new Error("Video upload is not configured");
+
+    const filename = sanitizeUploadFilename(data.filename);
+    const { exp, sig } = await signUploadToken("duration", filename, secret);
+    return { uploadUrl: VIDEO_UPLOAD_URL, filename, exp, sig };
+  });

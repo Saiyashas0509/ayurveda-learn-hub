@@ -36,8 +36,12 @@ import {
   deleteAssignment,
 } from "@/lib/course-builder.functions";
 import { uploadToBucket } from "@/lib/upload-helper";
-import { uploadVideoToHostinger, resolveVideoUrl, filenameFromVideoUrl } from "@/lib/upload-video";
-import { detectVideoDurationSeconds } from "@/lib/video-duration";
+import {
+  uploadVideoToHostinger,
+  getHostingerVideoDuration,
+  resolveVideoUrl,
+  filenameFromVideoUrl,
+} from "@/lib/upload-video";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -631,11 +635,15 @@ function LessonEditor({
   const attachedQuiz = quizzes.find((q) => q.lesson_id === lesson.id) ?? null;
   const availableQuizzes = quizzes.filter((q) => !q.lesson_id || q.lesson_id === lesson.id);
 
-  const detectDuration = async (url: string) => {
-    if (!url) return;
+  // Reads duration straight off the file on Hostinger's disk (server-side —
+  // see upload-relay.php) rather than probing it from the browser over HTTP.
+  // Only works for our own hosted filenames; external https:// URLs are
+  // silently skipped and left for manual entry.
+  const detectDuration = async (filename: string) => {
+    if (!filename) return;
     setDetectingDuration(true);
     try {
-      const seconds = await detectVideoDurationSeconds(url);
+      const seconds = await getHostingerVideoDuration(filename);
       if (seconds !== null) setDurationMinutes(Math.round((seconds / 60) * 10) / 10);
     } finally {
       setDetectingDuration(false);
@@ -646,7 +654,7 @@ function LessonEditor({
   // (e.g. the URL was pasted in before this feature existed), detect it once.
   useEffect(() => {
     if (lesson.video_url && !lesson.duration_seconds) {
-      detectDuration(lesson.video_url);
+      detectDuration(filenameFromVideoUrl(lesson.video_url));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -675,10 +683,12 @@ function LessonEditor({
     }
     setVideoProgress(0);
     try {
-      const url = await uploadVideoToHostinger(file, setVideoProgress);
+      const { url, durationSeconds } = await uploadVideoToHostinger(file, setVideoProgress);
       setVideoInput(filenameFromVideoUrl(url));
+      if (durationSeconds !== null) {
+        setDurationMinutes(Math.round((durationSeconds / 60) * 10) / 10);
+      }
       toast.success("Video uploaded");
-      await detectDuration(url);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -762,7 +772,7 @@ function LessonEditor({
               placeholder="lesson-video.mp4  (or a full https:// URL)"
               value={videoInput}
               onChange={(e) => setVideoInput(e.target.value)}
-              onBlur={(e) => detectDuration(resolveVideoUrl(e.target.value))}
+              onBlur={(e) => detectDuration(e.target.value)}
             />
             {videoProgress !== null && <Progress value={videoProgress} className="mt-2" />}
             <div className="mt-2 flex items-center gap-2">

@@ -23,7 +23,7 @@ function toBase64Url(bytes: ArrayBuffer): string {
 }
 
 async function computeSignature(
-  action: "upload" | "delete",
+  action: "upload" | "delete" | "duration",
   filename: string,
   exp: number,
   secret: string,
@@ -38,7 +38,7 @@ async function computeSignature(
 }
 
 export async function signUploadToken(
-  action: "upload" | "delete",
+  action: "upload" | "delete" | "duration",
   filename: string,
   secret: string,
   ttlSeconds = 600,
