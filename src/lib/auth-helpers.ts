@@ -80,8 +80,8 @@ export const ORG_TYPE_LABELS: Record<OrgType, string> = {
 
 export async function signOutFully() {
   try {
-    const { clearOtpVerification } = await import("@/lib/auth.functions");
-    await clearOtpVerification({});
+    const { clearOtpVerification, recordLogout } = await import("@/lib/auth.functions");
+    await Promise.all([clearOtpVerification({}), recordLogout({})]);
   } catch {
     // Best-effort — don't block sign-out if this fails.
   }

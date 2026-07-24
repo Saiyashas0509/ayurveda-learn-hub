@@ -1,7 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { listLoginActivity } from "@/lib/admin.functions";
+import { ROLE_LABELS, type AppRole } from "@/lib/auth-helpers";
 import { AdminHeader } from "@/components/admin/admin-header";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import {
   TABLE_WRAP,
   TABLE,
@@ -13,13 +18,110 @@ import {
   TD_MUTED,
   EMPTY_ROW,
 } from "@/components/admin/table";
-import { ScrollText } from "lucide-react";
+import { ScrollText, LogIn } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/audit-logs")({
   component: AuditLogs,
 });
 
 function AuditLogs() {
+  return (
+    <div className="space-y-6">
+      <AdminHeader
+        title="Audit Logs"
+        description="Complete record of authentication events, role changes, and privileged actions."
+      />
+
+      <Tabs defaultValue="login-activity" className="w-full">
+        <TabsList>
+          <TabsTrigger value="login-activity">Login Activity</TabsTrigger>
+          <TabsTrigger value="all-events">All Events</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="login-activity" className="mt-4">
+          <LoginActivity />
+        </TabsContent>
+
+        <TabsContent value="all-events" className="mt-4">
+          <AllEvents />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function formatDuration(startIso: string, endIso: string): string {
+  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return `${hrs}h ${rem}m`;
+}
+
+function LoginActivity() {
+  const fn = useServerFn(listLoginActivity);
+  const { data, isLoading } = useQuery({
+    queryKey: ["login-activity"],
+    queryFn: () => fn(),
+  });
+
+  return (
+    <div className={TABLE_WRAP}>
+      <table className={TABLE}>
+        <thead className={THEAD}>
+          <tr>
+            <th className={TH}>Person</th>
+            <th className={TH}>Role</th>
+            <th className={TH}>Logged in</th>
+            <th className={TH}>Logged out</th>
+            <th className={TH}>Duration</th>
+          </tr>
+        </thead>
+        <tbody className={TBODY}>
+          {(data ?? []).map((s, i) => (
+            <tr key={`${s.email}-${s.loginAt}-${i}`} className={TR}>
+              <td className={TD}>
+                <p className="font-medium">{s.fullName ?? s.email}</p>
+                <p className="text-xs text-muted-foreground">{s.email}</p>
+              </td>
+              <td className={TD}>
+                {s.role ? (
+                  <Badge variant="outline" className="text-xs">
+                    {ROLE_LABELS[s.role as AppRole] ?? s.role}
+                  </Badge>
+                ) : (
+                  "—"
+                )}
+              </td>
+              <td className={`${TD} whitespace-nowrap`}>{new Date(s.loginAt).toLocaleString()}</td>
+              <td className={`${TD} whitespace-nowrap`}>
+                {s.logoutAt ? (
+                  new Date(s.logoutAt).toLocaleString()
+                ) : (
+                  <Badge className="text-xs">Still active</Badge>
+                )}
+              </td>
+              <td className={`${TD_MUTED} whitespace-nowrap`}>
+                {s.logoutAt ? formatDuration(s.loginAt, s.logoutAt) : "—"}
+              </td>
+            </tr>
+          ))}
+          {!isLoading && (!data || data.length === 0) && (
+            <tr>
+              <td colSpan={5} className={EMPTY_ROW}>
+                <LogIn className="mx-auto mb-2 h-6 w-6" />
+                No login activity recorded yet.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AllEvents() {
   const { data } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: async () => {
@@ -33,44 +135,37 @@ function AuditLogs() {
   });
 
   return (
-    <div className="space-y-6">
-      <AdminHeader
-        title="Audit Logs"
-        description="Complete record of authentication events, role changes, and privileged actions."
-      />
-
-      <div className={TABLE_WRAP}>
-        <table className={TABLE}>
-          <thead className={THEAD}>
-            <tr>
-              <th className={TH}>When</th>
-              <th className={TH}>Actor</th>
-              <th className={TH}>Action</th>
-              <th className={TH}>Target</th>
+    <div className={TABLE_WRAP}>
+      <table className={TABLE}>
+        <thead className={THEAD}>
+          <tr>
+            <th className={TH}>When</th>
+            <th className={TH}>Actor</th>
+            <th className={TH}>Action</th>
+            <th className={TH}>Target</th>
+          </tr>
+        </thead>
+        <tbody className={TBODY}>
+          {(data ?? []).map((log) => (
+            <tr key={log.id} className={TR}>
+              <td className={`${TD_MUTED} whitespace-nowrap`}>
+                {new Date(log.created_at).toLocaleString()}
+              </td>
+              <td className={TD}>{log.actor_email ?? "—"}</td>
+              <td className={`${TD} font-mono text-xs`}>{log.action}</td>
+              <td className={`${TD_MUTED} text-xs`}>{log.target ?? "—"}</td>
             </tr>
-          </thead>
-          <tbody className={TBODY}>
-            {(data ?? []).map((log) => (
-              <tr key={log.id} className={TR}>
-                <td className={`${TD_MUTED} whitespace-nowrap`}>
-                  {new Date(log.created_at).toLocaleString()}
-                </td>
-                <td className={TD}>{log.actor_email ?? "—"}</td>
-                <td className={`${TD} font-mono text-xs`}>{log.action}</td>
-                <td className={`${TD_MUTED} text-xs`}>{log.target ?? "—"}</td>
-              </tr>
-            ))}
-            {(!data || data.length === 0) && (
-              <tr>
-                <td colSpan={4} className={EMPTY_ROW}>
-                  <ScrollText className="mx-auto mb-2 h-6 w-6" />
-                  No events recorded.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          ))}
+          {(!data || data.length === 0) && (
+            <tr>
+              <td colSpan={4} className={EMPTY_ROW}>
+                <ScrollText className="mx-auto mb-2 h-6 w-6" />
+                No events recorded.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

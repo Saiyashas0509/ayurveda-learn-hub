@@ -373,3 +373,86 @@ export const bulkSetUserStatus = createServerFn({ method: "POST" })
     });
     return { ok: true, count: data.userIds.length };
   });
+
+// Pairs raw login_success/logout audit events into readable sessions —
+// admin-only visibility into who's signed in and for how long.
+export const listLoginActivity = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: events } = await supabaseAdmin
+      .from("audit_logs")
+      .select("actor_id,actor_email,action,created_at")
+      .in("action", ["login_success", "logout"])
+      .order("created_at", { ascending: true })
+      .limit(2000);
+
+    const [{ data: employees }, { data: rolesRows }] = await Promise.all([
+      supabaseAdmin.from("employees").select("id,email,full_name"),
+      supabaseAdmin.from("user_roles").select("user_id,role"),
+    ]);
+    const nameByEmail = new Map((employees ?? []).map((e) => [e.email, e.full_name]));
+    const roleByUserId = new Map<string, string>();
+    for (const r of rolesRows ?? [])
+      if (!roleByUserId.has(r.user_id)) roleByUserId.set(r.user_id, r.role);
+
+    const byUser = new Map<
+      string,
+      { actor_id: string | null; action: string; created_at: string }[]
+    >();
+    for (const row of events ?? []) {
+      const key = row.actor_email ?? row.actor_id ?? "unknown";
+      const list = byUser.get(key) ?? [];
+      list.push(row);
+      byUser.set(key, list);
+    }
+
+    type Session = {
+      email: string;
+      fullName: string | null;
+      role: string | null;
+      loginAt: string;
+      logoutAt: string | null;
+    };
+    const sessions: Session[] = [];
+    for (const [email, userEvents] of byUser) {
+      let openLogin: { at: string; actorId: string | null } | null = null;
+      for (const ev of userEvents) {
+        if (ev.action === "login_success") {
+          if (openLogin) {
+            sessions.push({
+              email,
+              fullName: nameByEmail.get(email) ?? null,
+              role: openLogin.actorId ? (roleByUserId.get(openLogin.actorId) ?? null) : null,
+              loginAt: openLogin.at,
+              logoutAt: null,
+            });
+          }
+          openLogin = { at: ev.created_at, actorId: ev.actor_id };
+        } else if (ev.action === "logout" && openLogin) {
+          sessions.push({
+            email,
+            fullName: nameByEmail.get(email) ?? null,
+            role: openLogin.actorId ? (roleByUserId.get(openLogin.actorId) ?? null) : null,
+            loginAt: openLogin.at,
+            logoutAt: ev.created_at,
+          });
+          openLogin = null;
+        }
+      }
+      if (openLogin) {
+        sessions.push({
+          email,
+          fullName: nameByEmail.get(email) ?? null,
+          role: openLogin.actorId ? (roleByUserId.get(openLogin.actorId) ?? null) : null,
+          loginAt: openLogin.at,
+          logoutAt: null,
+        });
+      }
+    }
+
+    sessions.sort((a, b) => b.loginAt.localeCompare(a.loginAt));
+    return sessions.slice(0, 300);
+  });

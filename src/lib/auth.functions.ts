@@ -13,7 +13,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const bootstrapFirstAdmin = createServerFn({ method: "POST" })
   .inputValidator((data: { email: string; fullName: string }) => {
     const schema = z.object({
-      email: z.string().trim().toLowerCase().max(255).refine((v) => EMAIL_RE.test(v), "Invalid email"),
+      email: z
+        .string()
+        .trim()
+        .toLowerCase()
+        .max(255)
+        .refine((v) => EMAIL_RE.test(v), "Invalid email"),
       fullName: z.string().trim().min(2).max(120),
     });
     return schema.parse(data) as { email: string; fullName: string };
@@ -57,7 +62,16 @@ export const superAdminExists = createServerFn({ method: "GET" }).handler(async 
 // Check whether an email is allowed to sign in (employee OR pending bootstrap).
 export const requestLoginOtp = createServerFn({ method: "POST" })
   .inputValidator((data: { email: string }) => {
-    return z.object({ email: z.string().trim().toLowerCase().max(255).refine((v) => EMAIL_RE.test(v), "Invalid email") }).parse(data) as { email: string };
+    return z
+      .object({
+        email: z
+          .string()
+          .trim()
+          .toLowerCase()
+          .max(255)
+          .refine((v) => EMAIL_RE.test(v), "Invalid email"),
+      })
+      .parse(data) as { email: string };
   })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -90,13 +104,17 @@ export const requestLoginOtp = createServerFn({ method: "POST" })
         .from("user_roles")
         .select("role")
         .eq("user_id", emp.id);
-      const isAdminAccount = (roles ?? []).some((r) => (ADMIN_ONLY_ROLES as string[]).includes(r.role));
+      const isAdminAccount = (roles ?? []).some((r) =>
+        (ADMIN_ONLY_ROLES as string[]).includes(r.role),
+      );
       if (isAdminAccount) {
         await supabaseAdmin.from("audit_logs").insert({
           actor_email: data.email,
           action: "otp_request_denied_admin_requires_password",
         });
-        throw new Error("This account requires password sign-in. Use the admin login page instead.");
+        throw new Error(
+          "This account requires password sign-in. Use the admin login page instead.",
+        );
       }
       allowed = true;
     } else {
@@ -154,6 +172,22 @@ export const clearOtpVerification = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Records a logout event for the admin-visible login/logout activity view.
+// Must run before the actual supabase.auth.signOut() — once the session is
+// gone this authenticated call can no longer identify who's logging out.
+export const recordLogout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const email = ((context.claims as { email?: string }).email ?? "").toLowerCase();
+    await supabaseAdmin.from("audit_logs").insert({
+      actor_id: context.userId,
+      actor_email: email,
+      action: "logout",
+    });
+    return { ok: true };
+  });
+
 // Record final login success + finalize any pending bootstrap for this user.
 // Also enforces that admin-role accounts (super_admin/hr_admin) only complete
 // sign-in via password — OTP/Google sessions for those accounts get rejected
@@ -189,9 +223,7 @@ export const recordLoginSuccess = createServerFn({ method: "POST" })
             // Skip the self-signup onboarding wizard — /setup already collected this.
             onboarding_completed_at: new Date().toISOString(),
           });
-          await supabaseAdmin
-            .from("user_roles")
-            .insert({ user_id: userId, role: "super_admin" });
+          await supabaseAdmin.from("user_roles").insert({ user_id: userId, role: "super_admin" });
           await supabaseAdmin.from("audit_logs").insert({
             actor_id: userId,
             actor_email: email,
@@ -228,8 +260,13 @@ export const recordLoginSuccess = createServerFn({ method: "POST" })
 
       // Enforce password-only auth for admin roles, regardless of how this
       // session was established (OTP, Google, or the bootstrap promotion above).
-      const { data: roles } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
-      const isAdminAccount = (roles ?? []).some((r) => (ADMIN_ONLY_ROLES as string[]).includes(r.role));
+      const { data: roles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      const isAdminAccount = (roles ?? []).some((r) =>
+        (ADMIN_ONLY_ROLES as string[]).includes(r.role),
+      );
       if (isAdminAccount) {
         const amr = (context.claims as { amr?: { method?: string }[] }).amr ?? [];
         const usedPassword = amr.some((entry) => entry.method === "password");
