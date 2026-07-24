@@ -1,11 +1,21 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import { Shield, User, Wrench, ClipboardCheck, Video, Bell, ClipboardList } from "lucide-react";
+import {
+  Shield,
+  User,
+  Wrench,
+  ClipboardCheck,
+  Video,
+  Bell,
+  ClipboardList,
+  Building2,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 const ADMIN_TABS = [
   { to: "/admin", label: "Overview", icon: Shield },
   { to: "/admin/users", label: "Users", icon: User },
+  { to: "/admin/organizations", label: "Organizations", icon: Building2 },
   { to: "/admin/courses", label: "Course Builder", icon: Wrench },
   { to: "/admin/submissions", label: "Grading", icon: ClipboardCheck },
   { to: "/admin/live", label: "Live Classes", icon: Video },

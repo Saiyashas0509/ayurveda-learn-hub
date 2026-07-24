@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { verifyMediaToken } from "./lib/media-token";
+import { ftpDelete, ftpUploadFile } from "./lib/ftp-client.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -13,6 +14,107 @@ type MediaEnv = {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
 };
+
+type UploadEnv = {
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  FTP_HOST?: string;
+  FTP_PORT?: string;
+  FTP_USER?: string;
+  FTP_PASSWORD?: string;
+};
+
+const VIDEO_UPLOAD_PATH = "/api/admin/upload-video";
+const VIDEO_REMOTE_DIR = "/domains/travancoreayurvedalearning.com/public_html/videos";
+const VIDEO_PUBLIC_BASE = "https://videos.travancoreayurvedalearning.com";
+const FACULTY_ROLES = new Set(["super_admin", "hr_admin", "trainer", "faculty"]);
+
+// Strip anything that isn't safe in an FTP command or a URL path segment.
+// Blocks CRLF-based FTP command injection and path traversal via filenames.
+function sanitizeUploadFilename(name: string): string {
+  const base = name.split(/[/\\]/).pop() ?? "file";
+  const cleaned = base.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+/, "");
+  return cleaned.slice(-150) || "file";
+}
+
+async function handleVideoUpload(request: Request, env: UploadEnv): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname !== VIDEO_UPLOAD_PATH) return null;
+  if (request.method !== "POST" && request.method !== "DELETE") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FTP_HOST, FTP_USER, FTP_PASSWORD } = env;
+  const FTP_PORT = Number(env.FTP_PORT ?? "21");
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !FTP_HOST || !FTP_USER || !FTP_PASSWORD) {
+    return new Response(JSON.stringify({ error: "Upload not configured" }), { status: 500 });
+  }
+
+  const authHeader = request.headers.get("authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+
+  const claimsRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, authorization: `Bearer ${token}` },
+  });
+  if (!claimsRes.ok)
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  const user = (await claimsRes.json()) as { id?: string };
+  if (!user.id) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+
+  const rolesRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/user_roles?user_id=eq.${user.id}&select=role`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    },
+  );
+  const roles = (await rolesRes.json()) as { role: string }[];
+  if (!roles.some((r) => FACULTY_ROLES.has(r.role))) {
+    return new Response(JSON.stringify({ error: "Forbidden: faculty or admin role required" }), {
+      status: 403,
+    });
+  }
+
+  const ftpConfig = { host: FTP_HOST, port: FTP_PORT, user: FTP_USER, password: FTP_PASSWORD };
+
+  if (request.method === "DELETE") {
+    // Only ever touches files inside VIDEO_REMOTE_DIR — filename is sanitized
+    // (no slashes survive), so this can't be pointed outside that directory.
+    const target = sanitizeUploadFilename(url.searchParams.get("filename") ?? "");
+    if (!target)
+      return new Response(JSON.stringify({ error: "Missing filename" }), { status: 400 });
+    try {
+      await ftpDelete(ftpConfig, `${VIDEO_REMOTE_DIR}/${target}`);
+    } catch (err) {
+      console.error("[upload-video] FTP delete failed:", err);
+      return new Response(JSON.stringify({ error: "Delete failed" }), { status: 502 });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  const rawName = url.searchParams.get("filename") ?? "video.mp4";
+  const filename = `${Date.now()}-${sanitizeUploadFilename(rawName)}`;
+  if (!request.body) return new Response(JSON.stringify({ error: "Empty body" }), { status: 400 });
+
+  try {
+    await ftpUploadFile(ftpConfig, `${VIDEO_REMOTE_DIR}/${filename}`, request.body);
+  } catch (err) {
+    console.error("[upload-video] FTP upload failed:", err);
+    return new Response(JSON.stringify({ error: "Upload to storage failed" }), { status: 502 });
+  }
+
+  return new Response(
+    JSON.stringify({ url: `${VIDEO_PUBLIC_BASE}/${encodeURIComponent(filename)}` }),
+    {
+      headers: { "content-type": "application/json" },
+    },
+  );
+}
 
 const LESSON_MEDIA_PATH = /^\/media\/lessons\/([0-9a-fA-F-]{36})$/;
 
@@ -38,10 +140,9 @@ async function handleLessonMedia(request: Request, env: MediaEnv): Promise<Respo
   const valid = await verifyMediaToken(lessonId, exp, sig, secret);
   if (!valid) return new Response("Forbidden", { status: 403 });
 
-  const lookup = await fetch(
-    `${supabaseUrl}/rest/v1/lessons?id=eq.${lessonId}&select=video_url`,
-    { headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` } },
-  );
+  const lookup = await fetch(`${supabaseUrl}/rest/v1/lessons?id=eq.${lessonId}&select=video_url`, {
+    headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+  });
   const rows = (await lookup.json()) as { video_url: string | null }[];
   const videoUrl = rows[0]?.video_url;
   if (!videoUrl) return new Response("Not found", { status: 404 });
@@ -109,6 +210,9 @@ export default {
     try {
       const mediaResponse = await handleLessonMedia(request, env as MediaEnv);
       if (mediaResponse) return mediaResponse;
+
+      const uploadResponse = await handleVideoUpload(request, env as UploadEnv);
+      if (uploadResponse) return uploadResponse;
 
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

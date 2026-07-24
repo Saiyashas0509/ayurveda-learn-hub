@@ -18,6 +18,7 @@ dist-ssr
 
 # Wrangler / Cloudflare
 .wrangler/
+worker-configuration.d.ts
 
 # Secrets
 .env

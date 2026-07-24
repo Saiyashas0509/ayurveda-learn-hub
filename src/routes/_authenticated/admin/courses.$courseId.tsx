@@ -36,6 +36,7 @@ import {
   deleteAssignment,
 } from "@/lib/course-builder.functions";
 import { uploadToBucket } from "@/lib/upload-helper";
+import { uploadVideoToHostinger } from "@/lib/upload-video";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -192,11 +193,7 @@ function CourseHeader({
                 Preview allowed
               </Label>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => saveMut.mutate()}
-              disabled={saveMut.isPending}
-            >
+            <Button variant="outline" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
               <Save className="mr-2 h-4 w-4" /> Save
             </Button>
           </div>
@@ -549,6 +546,7 @@ function LessonEditor({
   const [videoProgress, setVideoProgress] = useState<number | null>(null);
   const [resProgress, setResProgress] = useState<number | null>(null);
   const [newQuizTitle, setNewQuizTitle] = useState("");
+  const [videoDragOver, setVideoDragOver] = useState(false);
 
   const attachedQuiz = quizzes.find((q) => q.lesson_id === lesson.id) ?? null;
   const availableQuizzes = quizzes.filter((q) => !q.lesson_id || q.lesson_id === lesson.id);
@@ -571,15 +569,14 @@ function LessonEditor({
     });
 
   const uploadVideo = async (file: File) => {
+    if (!file.type.startsWith("video/")) {
+      toast.error("Please drop a video file");
+      return;
+    }
     setVideoProgress(0);
     try {
-      const { path } = await uploadToBucket({
-        bucket: "course-media",
-        file,
-        pathPrefix: `courses/${courseId}/lessons/${lesson.id}/video`,
-        onProgress: setVideoProgress,
-      });
-      setVideoUrl(path);
+      const url = await uploadVideoToHostinger(file, setVideoProgress);
+      setVideoUrl(url);
       toast.success("Video uploaded");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
@@ -626,7 +623,20 @@ function LessonEditor({
             <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} />
           </div>
 
-          <div className="rounded-md border border-border p-3">
+          <div
+            className={`rounded-md border p-3 transition-colors ${videoDragOver ? "border-primary bg-primary/5" : "border-border"}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setVideoDragOver(true);
+            }}
+            onDragLeave={() => setVideoDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setVideoDragOver(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) uploadVideo(file);
+            }}
+          >
             <div className="flex items-center justify-between">
               <Label className="flex items-center gap-1">
                 <Video className="h-4 w-4" /> Video
@@ -641,6 +651,10 @@ function LessonEditor({
                 Upload
               </label>
             </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Drag and drop a video file here, or click Upload. Uploads directly to secure storage —
+              the URL fills in automatically.
+            </p>
             <Input
               className="mt-2"
               placeholder="https://videos.example.com/lesson.mp4"

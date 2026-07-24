@@ -3,5 +3,11 @@
   "name": "saiyashas0509-ayurveda-learn-hub",
   "compatibility_date": "2026-07-01",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts"
+  "main": "src/server.ts",
+  "vars": {
+    "FTP_HOST": "217.21.90.49",
+    "FTP_PORT": "21",
+    "FTP_USER": "u834071200",
+    "FTP_BASE_DIR": "/public_html"
+  }
 }
