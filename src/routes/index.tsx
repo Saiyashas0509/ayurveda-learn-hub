@@ -69,13 +69,6 @@ function Landing() {
               </span>
             </Link>
           </div>
-
-          <Link
-            to="/demo"
-            className="mt-8 inline-block text-sm text-primary-foreground/60 underline-offset-4 hover:text-primary-foreground/90 hover:underline"
-          >
-            Preview the platform without signing in →
-          </Link>
         </div>
       </section>
 
