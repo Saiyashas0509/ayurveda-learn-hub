@@ -1,11 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { getUserActivityProfile } from "@/lib/admin.functions";
 import { ROLE_LABELS, type AppRole } from "@/lib/auth-helpers";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { StatusPill } from "@/components/admin/status-pill";
+import { DeleteUserDialog } from "@/components/admin/delete-user-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   TABLE_WRAP,
@@ -24,7 +26,7 @@ import {
   formatLocation,
   formatActionLabel,
 } from "@/lib/activity-format";
-import { ArrowLeft, ScrollText } from "lucide-react";
+import { ArrowLeft, ScrollText, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/users/$userId")({
   component: UserProfilePage,
@@ -32,6 +34,7 @@ export const Route = createFileRoute("/_authenticated/admin/users/$userId")({
 
 function UserProfilePage() {
   const { userId } = Route.useParams();
+  const navigate = useNavigate();
   const fn = useServerFn(getUserActivityProfile);
   const { data } = useSuspenseQuery(
     queryOptions({
@@ -59,9 +62,22 @@ function UserProfilePage() {
         description={employee.email}
         showTabs={false}
         actions={
-          <StatusPill tone={isOnline ? "success" : "neutral"}>
-            {isOnline ? "Online" : "Offline"}
-          </StatusPill>
+          <div className="flex items-center gap-2">
+            <StatusPill tone={isOnline ? "success" : "neutral"}>
+              {isOnline ? "Online" : "Offline"}
+            </StatusPill>
+            <DeleteUserDialog
+              userId={userId}
+              userEmail={employee.email}
+              userName={employee.full_name}
+              onDeleted={() => navigate({ to: "/admin/users" })}
+              trigger={
+                <Button size="sm" variant="destructive">
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete user
+                </Button>
+              }
+            />
+          </div>
         }
       />
 

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { StatusPill } from "@/components/admin/status-pill";
+import { DeleteUserDialog } from "@/components/admin/delete-user-dialog";
 import {
   TABLE_WRAP,
   TABLE,
@@ -400,15 +401,23 @@ function UsersPage() {
                   </StatusPill>
                 </td>
                 <td className={TD_RIGHT}>
-                  {u.status === "active" ? (
-                    <Button size="sm" variant="ghost" onClick={() => toggle(u.id, "disabled")}>
-                      <Ban className="mr-1 h-3.5 w-3.5" /> Disable
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="ghost" onClick={() => toggle(u.id, "active")}>
-                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Activate
-                    </Button>
-                  )}
+                  <div className="flex items-center justify-end gap-1">
+                    {u.status === "active" ? (
+                      <Button size="sm" variant="ghost" onClick={() => toggle(u.id, "disabled")}>
+                        <Ban className="mr-1 h-3.5 w-3.5" /> Disable
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="ghost" onClick={() => toggle(u.id, "active")}>
+                        <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Activate
+                      </Button>
+                    )}
+                    <DeleteUserDialog
+                      userId={u.id}
+                      userEmail={u.email}
+                      userName={u.full_name}
+                      onDeleted={invalidate}
+                    />
+                  </div>
                 </td>
               </tr>
             ))}

@@ -165,6 +165,56 @@ export const setUserRole = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Permanently deletes a user's auth account. Every table that references
+// auth.users(id) (employees, user_roles, lesson_progress, quiz_attempts,
+// certificates, assignment_submissions, notifications, etc.) has ON DELETE
+// CASCADE, so this one call removes the entire user footprint in the
+// database; audit_logs.actor_id is ON DELETE SET NULL instead, so this
+// user's own past actions stay in the audit trail with the actor reference
+// cleared rather than disappearing.
+export const deleteUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { userId: string }) => z.object({ userId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    if (data.userId === context.userId) {
+      throw new Error("You can't delete your own account.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: employee } = await supabaseAdmin
+      .from("employees")
+      .select("email, full_name")
+      .eq("id", data.userId)
+      .maybeSingle();
+
+    const { data: roles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", data.userId);
+    if ((roles ?? []).some((r) => r.role === "super_admin")) {
+      const { count } = await supabaseAdmin
+        .from("user_roles")
+        .select("*", { count: "exact", head: true })
+        .eq("role", "super_admin");
+      if ((count ?? 0) <= 1) {
+        throw new Error("Can't delete the last super admin account.");
+      }
+    }
+
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
+    if (error) throw new Error(error.message);
+
+    await supabaseAdmin.from("audit_logs").insert({
+      actor_id: context.userId,
+      action: "user_deleted",
+      target: data.userId,
+      metadata: { email: employee?.email ?? null, fullName: employee?.full_name ?? null },
+    });
+
+    return { ok: true };
+  });
+
 export const publishAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { title: string; body: string }) =>
