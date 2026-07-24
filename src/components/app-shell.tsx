@@ -9,6 +9,14 @@ import { ROLE_LABELS, signOutFully, type AppRole } from "@/lib/auth-helpers";
 import { BrandLogo } from "@/components/brand-logo";
 import { ROLE_VIEWS, pickPrimaryRole } from "@/config/roleViews";
 import { NotificationBell } from "@/components/notification-bell";
+import { Tour } from "@/components/tour/tour";
+import { EMPLOYEE_TOUR_STEPS, ADMIN_TOUR_STEPS } from "@/config/tourSteps";
+
+// The admin tour's steps target the full platform-admin nav (Users, Organizations,
+// Course Builder, Audit Logs) — only super_admin/hr_admin have every one of those
+// links in their sidebar, so that's who gets the admin tour. Everyone else (even
+// faculty/org-admin roles with partial admin access) gets the employee tour.
+const FULL_ADMIN_ROLES = new Set(["super_admin", "hr_admin"]);
 
 const IDLE_MS = 30 * 60 * 1000; // 30 min auto logout
 
@@ -58,11 +66,28 @@ export function AppShell({ children }: { children: ReactNode }) {
         .from("user_roles")
         .select("role")
         .eq("user_id", u.user.id);
-      return { employee: emp, roles: (roles ?? []).map((r) => r.role as AppRole) };
+      return {
+        userId: u.user.id,
+        employee: emp,
+        roles: (roles ?? []).map((r) => r.role as AppRole),
+      };
     },
   });
 
   const roles = me?.roles ?? [];
+  const isFullAdmin = roles.some((r) => FULL_ADMIN_ROLES.has(r));
+  const tourStorageKey = me?.userId
+    ? `tour-seen:${isFullAdmin ? "admin" : "employee"}:${me.userId}`
+    : null;
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => {
+    if (tourStorageKey && !localStorage.getItem(tourStorageKey)) setShowTour(true);
+  }, [tourStorageKey]);
+  const dismissTour = () => {
+    if (tourStorageKey) localStorage.setItem(tourStorageKey, "1");
+    setShowTour(false);
+  };
+
   const primaryRole =
     (me?.employee?.primary_role as AppRole | null) ??
     (roles.length ? pickPrimaryRole(roles) : "student");
@@ -167,6 +192,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NotificationBell />
           <Link
             to="/help"
+            data-tour="header-help"
             className="hidden items-center gap-1.5 rounded-md border border-input px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent md:inline-flex"
           >
             <LifeBuoy className="h-3.5 w-3.5" /> Help
@@ -180,6 +206,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8 lg:py-10">{children}</main>
       </div>
+
+      {showTour && (
+        <Tour
+          steps={isFullAdmin ? ADMIN_TOUR_STEPS : EMPLOYEE_TOUR_STEPS}
+          onOpenSidebar={setOpen}
+          onDone={dismissTour}
+        />
+      )}
     </div>
   );
 }
@@ -198,6 +232,7 @@ function SideLink({
   return (
     <Link
       to={to}
+      data-tour={`nav-${to}`}
       onClick={onClick}
       className={cn(
         "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
