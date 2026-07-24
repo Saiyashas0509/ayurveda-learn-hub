@@ -7,6 +7,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { ADMIN_ONLY_ROLES } from "@/lib/auth-helpers";
 import { logAudit } from "@/lib/audit";
+import { LEGAL_VERSIONS } from "@/lib/legal";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -169,6 +170,51 @@ export const clearOtpVerification = createServerFn({ method: "POST" })
     const { data: existing } = await supabaseAdmin.auth.admin.getUserById(context.userId);
     await supabaseAdmin.auth.admin.updateUserById(context.userId, {
       app_metadata: { ...existing?.user?.app_metadata, otp_verified_at: null },
+    });
+    return { ok: true };
+  });
+
+// Records explicit Terms & Privacy acceptance for compliance: stamped on
+// app_metadata (so the route guard can check it with zero extra queries,
+// same pattern as otp_verified_at) AND written to audit_logs as a permanent,
+// queryable consent record with IP/device and the exact document versions
+// accepted. Self-signup users accept as part of completeOnboarding; everyone
+// else (admin-created accounts, admins themselves) hits this via /accept-terms
+// on first login.
+export const recordTermsAcceptance = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const email = ((context.claims as { email?: string }).email ?? "").toLowerCase();
+    const { data: existing } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const acceptedAt = new Date().toISOString();
+    await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+      app_metadata: { ...existing?.user?.app_metadata, terms_accepted_at: acceptedAt },
+    });
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: email,
+      action: "terms_accepted",
+      metadata: { termsVersion: LEGAL_VERSIONS.terms, privacyVersion: LEGAL_VERSIONS.privacy },
+    });
+    return { ok: true };
+  });
+
+// Best-effort compliance record for the cookie banner, only ever called when
+// the visitor happens to already be signed in (the banner itself works from
+// localStorage alone so it also functions for anonymous landing-page visitors).
+export const recordCookieConsent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { choice: "all" | "essential" }) =>
+    z.object({ choice: z.enum(["all", "essential"]) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const email = ((context.claims as { email?: string }).email ?? "").toLowerCase();
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: email,
+      action: "cookie_consent_recorded",
+      metadata: { choice: data.choice, cookiesVersion: LEGAL_VERSIONS.cookies },
     });
     return { ok: true };
   });

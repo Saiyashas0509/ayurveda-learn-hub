@@ -3,12 +3,25 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { LEARNING_INTERESTS, SELF_SIGNUP_ROLES, type AppRole } from "@/lib/auth-helpers";
+import { logAudit } from "@/lib/audit";
+import { LEGAL_VERSIONS } from "@/lib/legal";
 
 const ALL_ROLES: AppRole[] = [
-  "student", "doctor", "therapist", "franchise_owner", "corporate_employee",
-  "hospital_staff", "faculty", "org_admin",
-  "front_office", "trainer", "center_head_doctor", "regional_manager",
-  "hr_admin", "auditor", "super_admin",
+  "student",
+  "doctor",
+  "therapist",
+  "franchise_owner",
+  "corporate_employee",
+  "hospital_staff",
+  "faculty",
+  "org_admin",
+  "front_office",
+  "trainer",
+  "center_head_doctor",
+  "regional_manager",
+  "hr_admin",
+  "auditor",
+  "super_admin",
 ];
 
 // Load the current user's onboarding status + selectable orgs/centers +
@@ -20,12 +33,29 @@ export const getOnboardingContext = createServerFn({ method: "GET" })
     const { userId, claims } = context;
     const email = ((claims as { email?: string }).email ?? "").toLowerCase();
 
-    const [{ data: emp }, { data: pending }, { data: orgs }, { data: centers }] = await Promise.all([
-      supabaseAdmin.from("employees").select("id,email,full_name,onboarding_completed_at,organization_id,center_id,primary_role,learning_interests,phone,designation").eq("id", userId).maybeSingle(),
-      email ? supabaseAdmin.from("pending_bootstrap").select("*").eq("email", email).maybeSingle() : Promise.resolve({ data: null }),
-      supabaseAdmin.from("organizations").select("id,name,slug,org_type").eq("is_active", true).order("name"),
-      supabaseAdmin.from("centers").select("id,name,organization_id,city,center_type").order("name"),
-    ]);
+    const [{ data: emp }, { data: pending }, { data: orgs }, { data: centers }] = await Promise.all(
+      [
+        supabaseAdmin
+          .from("employees")
+          .select(
+            "id,email,full_name,onboarding_completed_at,organization_id,center_id,primary_role,learning_interests,phone,designation",
+          )
+          .eq("id", userId)
+          .maybeSingle(),
+        email
+          ? supabaseAdmin.from("pending_bootstrap").select("*").eq("email", email).maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabaseAdmin
+          .from("organizations")
+          .select("id,name,slug,org_type")
+          .eq("is_active", true)
+          .order("name"),
+        supabaseAdmin
+          .from("centers")
+          .select("id,name,organization_id,city,center_type")
+          .order("name"),
+      ],
+    );
 
     const isBootstrapAdmin = !!pending && !emp?.onboarding_completed_at;
 
@@ -35,7 +65,11 @@ export const getOnboardingContext = createServerFn({ method: "GET" })
       pending,
       organizations: orgs ?? [],
       centers: centers ?? [],
-      allowedRoles: isBootstrapAdmin ? (["super_admin"] as AppRole[]) : (pending?.requested_role ? [pending.requested_role as AppRole] : SELF_SIGNUP_ROLES),
+      allowedRoles: isBootstrapAdmin
+        ? (["super_admin"] as AppRole[])
+        : pending?.requested_role
+          ? [pending.requested_role as AppRole]
+          : SELF_SIGNUP_ROLES,
       completed: !!emp?.onboarding_completed_at,
     };
   });
@@ -44,25 +78,33 @@ const InterestSchema = z.enum(LEARNING_INTERESTS);
 
 export const completeOnboarding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: {
-    fullName: string;
-    phone?: string;
-    designation?: string;
-    role: AppRole;
-    organizationId: string;
-    centerId?: string | null;
-    learningInterests: string[];
-  }) => {
-    return z.object({
-      fullName: z.string().trim().min(2).max(120),
-      phone: z.string().trim().max(40).optional().or(z.literal("")),
-      designation: z.string().trim().max(120).optional().or(z.literal("")),
-      role: z.enum(ALL_ROLES as [AppRole, ...AppRole[]]),
-      organizationId: z.string().uuid(),
-      centerId: z.string().uuid().nullable().optional(),
-      learningInterests: z.array(InterestSchema).min(1).max(LEARNING_INTERESTS.length),
-    }).parse(data);
-  })
+  .inputValidator(
+    (data: {
+      fullName: string;
+      phone?: string;
+      designation?: string;
+      role: AppRole;
+      organizationId: string;
+      centerId?: string | null;
+      learningInterests: string[];
+      termsAccepted: boolean;
+    }) => {
+      return z
+        .object({
+          fullName: z.string().trim().min(2).max(120),
+          phone: z.string().trim().max(40).optional().or(z.literal("")),
+          designation: z.string().trim().max(120).optional().or(z.literal("")),
+          role: z.enum(ALL_ROLES as [AppRole, ...AppRole[]]),
+          organizationId: z.string().uuid(),
+          centerId: z.string().uuid().nullable().optional(),
+          learningInterests: z.array(InterestSchema).min(1).max(LEARNING_INTERESTS.length),
+          termsAccepted: z.literal(true, {
+            message: "You must accept the Terms & Conditions and Privacy Policy to continue.",
+          }),
+        })
+        .parse(data);
+    },
+  )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { userId, claims } = context;
@@ -94,26 +136,28 @@ export const completeOnboarding = createServerFn({ method: "POST" })
     const centerId = pending?.center_id ?? data.centerId ?? null;
 
     // Upsert employee row.
-    const { error: empErr } = await supabaseAdmin.from("employees").upsert({
-      id: userId,
-      email,
-      full_name: pending?.full_name ?? data.fullName,
-      phone: data.phone || pending?.phone || null,
-      designation: data.designation || pending?.designation || null,
-      status: "active",
-      organization_id: organizationId,
-      center_id: centerId,
-      primary_role: requestedRole,
-      learning_interests: data.learningInterests,
-      onboarding_completed_at: new Date().toISOString(),
-    }, { onConflict: "id" });
+    const { error: empErr } = await supabaseAdmin.from("employees").upsert(
+      {
+        id: userId,
+        email,
+        full_name: pending?.full_name ?? data.fullName,
+        phone: data.phone || pending?.phone || null,
+        designation: data.designation || pending?.designation || null,
+        status: "active",
+        organization_id: organizationId,
+        center_id: centerId,
+        primary_role: requestedRole,
+        learning_interests: data.learningInterests,
+        onboarding_completed_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
+    );
     if (empErr) throw new Error(empErr.message);
 
     // Grant role (idempotent thanks to unique(user_id, role)).
-    await supabaseAdmin.from("user_roles").upsert(
-      { user_id: userId, role: requestedRole },
-      { onConflict: "user_id,role" },
-    );
+    await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: userId, role: requestedRole }, { onConflict: "user_id,role" });
 
     // Consume pending bootstrap if any.
     if (pending) {
@@ -124,7 +168,32 @@ export const completeOnboarding = createServerFn({ method: "POST" })
       actor_id: userId,
       actor_email: email,
       action: "onboarding_completed",
-      metadata: { role: requestedRole, organization_id: organizationId, interests: data.learningInterests },
+      metadata: {
+        role: requestedRole,
+        organization_id: organizationId,
+        interests: data.learningInterests,
+      },
+    });
+
+    // Record Terms & Privacy acceptance — same app_metadata stamp the route
+    // guard checks (zero extra queries) plus a permanent audit_logs record
+    // with IP/device and the exact document versions accepted.
+    const { data: existingUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      app_metadata: {
+        ...existingUser?.user?.app_metadata,
+        terms_accepted_at: new Date().toISOString(),
+      },
+    });
+    await logAudit({
+      actorId: userId,
+      actorEmail: email,
+      action: "terms_accepted",
+      metadata: {
+        termsVersion: LEGAL_VERSIONS.terms,
+        privacyVersion: LEGAL_VERSIONS.privacy,
+        via: "onboarding",
+      },
     });
 
     return { ok: true, role: requestedRole, organizationId };

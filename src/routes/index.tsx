@@ -25,13 +25,15 @@ function Landing() {
         <div className="pointer-events-none absolute -left-32 bottom-0 h-80 w-80 rounded-full bg-primary-foreground/10 blur-3xl" />
 
         <div className="relative mx-auto max-w-6xl px-6 py-20 text-primary-foreground sm:py-28">
-          <p className="text-xs font-medium uppercase tracking-[0.3em] text-gold">Closed Enterprise Portal</p>
+          <p className="text-xs font-medium uppercase tracking-[0.3em] text-gold">
+            Closed Enterprise Portal
+          </p>
           <h1 className="mt-4 max-w-3xl font-display text-5xl font-semibold leading-tight sm:text-6xl">
             The learning platform for every Travancore Ayurveda team member.
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-primary-foreground/85">
-            Structured training on patient care, compliance, and therapy procedures — assigned by role, tracked
-            centrally, and certified when you're ready.
+            Structured training on patient care, compliance, and therapy procedures — assigned by
+            role, tracked centrally, and certified when you're ready.
           </p>
 
           <div className="mt-12 grid gap-4 sm:max-w-2xl sm:grid-cols-2">
@@ -106,11 +108,25 @@ function Landing() {
       </section>
 
       <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-2 px-6 py-6 text-xs text-muted-foreground sm:flex-row">
-          <p>© {new Date().getFullYear()} Travancore Ayurveda. Internal system. Unauthorized access is prohibited.</p>
-          <Link to="/verify/$code" params={{ code: "example" }} className="hover:text-foreground">
-            Verify a certificate →
-          </Link>
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-6 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center">
+          <p>
+            © {new Date().getFullYear()} Travancore Ayurveda. Internal system. Unauthorized access
+            is prohibited.
+          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link to="/terms" className="hover:text-foreground hover:underline">
+              Terms &amp; Conditions
+            </Link>
+            <Link to="/privacy" className="hover:text-foreground hover:underline">
+              Privacy Policy
+            </Link>
+            <Link to="/cookies" className="hover:text-foreground hover:underline">
+              Cookie Policy
+            </Link>
+            <Link to="/verify/$code" params={{ code: "example" }} className="hover:text-foreground">
+              Verify a certificate →
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

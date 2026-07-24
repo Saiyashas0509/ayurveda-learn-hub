@@ -21,12 +21,15 @@ import appCss from "../styles.css?url";
 import { reportAppError } from "../lib/error-reporting";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { CookieConsentBanner } from "@/components/legal/cookie-consent-banner";
 
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Travancore Ayurveda LMS</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          Travancore Ayurveda LMS
+        </p>
         <h1 className="mt-3 font-display text-7xl font-semibold text-primary">404</h1>
         <h2 className="mt-2 text-xl font-medium text-foreground">Page not found</h2>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -55,7 +58,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="font-display text-2xl font-semibold text-foreground">This page didn't load</h1>
+        <h1 className="font-display text-2xl font-semibold text-foreground">
+          This page didn't load
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
@@ -95,14 +100,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "author", content: "Travancore Ayurveda" },
       { name: "robots", content: "noindex, nofollow" },
       { property: "og:title", content: "Travancore Ayurveda — Learning Portal" },
-      { property: "og:description", content: "An enterprise LMS for Travancore Ayurveda employees, offering secure, role-based access to training and development resources." },
+      {
+        property: "og:description",
+        content:
+          "An enterprise LMS for Travancore Ayurveda employees, offering secure, role-based access to training and development resources.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Travancore Ayurveda — Learning Portal" },
-      { name: "description", content: "An enterprise LMS for Travancore Ayurveda employees, offering secure, role-based access to training and development resources." },
-      { name: "twitter:description", content: "An enterprise LMS for Travancore Ayurveda employees, offering secure, role-based access to training and development resources." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6bd38849-bbaa-4dfd-a0c0-b8ae769b3dac/id-preview-22f3ea2e--7f344acf-9a02-447b-a738-455f953126c4.lovable.app-1783004983328.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6bd38849-bbaa-4dfd-a0c0-b8ae769b3dac/id-preview-22f3ea2e--7f344acf-9a02-447b-a738-455f953126c4.lovable.app-1783004983328.png" },
+      {
+        name: "description",
+        content:
+          "An enterprise LMS for Travancore Ayurveda employees, offering secure, role-based access to training and development resources.",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "An enterprise LMS for Travancore Ayurveda employees, offering secure, role-based access to training and development resources.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6bd38849-bbaa-4dfd-a0c0-b8ae769b3dac/id-preview-22f3ea2e--7f344acf-9a02-447b-a738-455f953126c4.lovable.app-1783004983328.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/6bd38849-bbaa-4dfd-a0c0-b8ae769b3dac/id-preview-22f3ea2e--7f344acf-9a02-447b-a738-455f953126c4.lovable.app-1783004983328.png",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -147,6 +172,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <Outlet />
       <Toaster richColors position="top-right" />
+      <CookieConsentBanner />
     </QueryClientProvider>
   );
 }

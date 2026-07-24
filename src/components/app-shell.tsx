@@ -11,6 +11,7 @@ import { ROLE_VIEWS, pickPrimaryRole } from "@/config/roleViews";
 import { NotificationBell } from "@/components/notification-bell";
 import { Tour } from "@/components/tour/tour";
 import { EMPLOYEE_TOUR_STEPS, ADMIN_TOUR_STEPS } from "@/config/tourSteps";
+import { hasFunctionalConsent } from "@/lib/cookie-consent";
 
 // The admin tour's steps target the full platform-admin nav (Users, Organizations,
 // Course Builder, Audit Logs). Rather than hardcode which roles have that full
@@ -91,7 +92,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (tourStorageKey && !localStorage.getItem(tourStorageKey)) setShowTour(true);
   }, [tourStorageKey]);
   const dismissTour = () => {
-    if (tourStorageKey) localStorage.setItem(tourStorageKey, "1");
+    // Remembering "tour already seen" is a functional preference — only
+    // persist it if the visitor opted into functional storage via the
+    // cookie banner. Declining just means the tour may show again next visit.
+    if (tourStorageKey && hasFunctionalConsent()) localStorage.setItem(tourStorageKey, "1");
     setShowTour(false);
   };
   const initials = (me?.employee?.full_name ?? "T A")

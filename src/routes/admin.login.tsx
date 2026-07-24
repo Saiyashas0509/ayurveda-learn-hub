@@ -39,7 +39,9 @@ function AdminLoginPage() {
       const msg = err instanceof Error ? err.message : "Invalid email or password.";
       // Surface the server's own reasoning (e.g. disabled account) rather than
       // masking everything as "invalid credentials".
-      toast.error(msg.includes("ADMIN_PASSWORD_REQUIRED") ? "Something went wrong. Try again." : msg);
+      toast.error(
+        msg.includes("ADMIN_PASSWORD_REQUIRED") ? "Something went wrong. Try again." : msg,
+      );
       await supabase.auth.signOut().catch(() => null);
     } finally {
       setLoading(false);
@@ -77,7 +79,8 @@ function AdminLoginPage() {
               Administrator access.
             </h1>
             <p className="mt-4 max-w-md text-primary-foreground/80">
-              Admin accounts sign in with a password for clear, traceable access to sensitive actions.
+              Admin accounts sign in with a password for clear, traceable access to sensitive
+              actions.
             </p>
             <div className="mt-8 flex items-center gap-2 text-sm text-primary-foreground/70">
               <KeyRound className="h-4 w-4 text-gold" />
@@ -99,7 +102,9 @@ function AdminLoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <h2 className="font-display text-2xl font-semibold">Admin Sign In</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Sign in with your admin email and password.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Sign in with your admin email and password.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -149,11 +154,32 @@ function AdminLoginPage() {
             </div>
 
             <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (<>Sign in <ArrowRight className="ml-2 h-4 w-4" /></>)}
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  Sign in <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
             </Button>
 
             <p className="text-center text-xs text-muted-foreground">
-              Not an admin? <Link to="/auth" className="text-primary hover:underline">Sign in here</Link>
+              Not an admin?{" "}
+              <Link to="/auth" className="text-primary hover:underline">
+                Sign in here
+              </Link>
+            </p>
+
+            <p className="text-center text-xs text-muted-foreground">
+              By continuing, you agree to our{" "}
+              <Link to="/terms" className="hover:text-foreground hover:underline">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="hover:text-foreground hover:underline">
+                Privacy Policy
+              </Link>
+              .
             </p>
           </form>
         </div>
