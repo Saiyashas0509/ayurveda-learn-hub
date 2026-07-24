@@ -375,7 +375,7 @@ export const bulkSetUserStatus = createServerFn({ method: "POST" })
   });
 
 // Pairs raw login_success/logout audit events into readable sessions —
-// admin-only visibility into who's signed in and for how long.
+// admin-only visibility into who's signed in, for how long, and from where.
 export const listLoginActivity = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -384,7 +384,7 @@ export const listLoginActivity = createServerFn({ method: "GET" })
 
     const { data: events } = await supabaseAdmin
       .from("audit_logs")
-      .select("actor_id,actor_email,action,created_at")
+      .select("actor_id,actor_email,action,created_at,ip,metadata")
       .in("action", ["login_success", "logout"])
       .order("created_at", { ascending: true })
       .limit(2000);
@@ -398,14 +398,18 @@ export const listLoginActivity = createServerFn({ method: "GET" })
     for (const r of rolesRows ?? [])
       if (!roleByUserId.has(r.user_id)) roleByUserId.set(r.user_id, r.role);
 
-    const byUser = new Map<
-      string,
-      { actor_id: string | null; action: string; created_at: string }[]
-    >();
+    type RawEvent = {
+      actor_id: string | null;
+      action: string;
+      created_at: string;
+      ip: string | null;
+      metadata: Record<string, unknown> | null;
+    };
+    const byUser = new Map<string, RawEvent[]>();
     for (const row of events ?? []) {
       const key = row.actor_email ?? row.actor_id ?? "unknown";
       const list = byUser.get(key) ?? [];
-      list.push(row);
+      list.push({ ...row, metadata: row.metadata as Record<string, unknown> | null });
       byUser.set(key, list);
     }
 
@@ -415,42 +419,34 @@ export const listLoginActivity = createServerFn({ method: "GET" })
       role: string | null;
       loginAt: string;
       logoutAt: string | null;
+      ip: string | null;
+      userAgent: string | null;
+      method: string | null;
     };
+    const toSession = (email: string, open: RawEvent, logoutAt: string | null): Session => ({
+      email,
+      fullName: nameByEmail.get(email) ?? null,
+      role: open.actor_id ? (roleByUserId.get(open.actor_id) ?? null) : null,
+      loginAt: open.created_at,
+      logoutAt,
+      ip: open.ip,
+      userAgent: (open.metadata?.user_agent as string | undefined) ?? null,
+      method: (open.metadata?.method as string | undefined) ?? null,
+    });
+
     const sessions: Session[] = [];
     for (const [email, userEvents] of byUser) {
-      let openLogin: { at: string; actorId: string | null } | null = null;
+      let openLogin: RawEvent | null = null;
       for (const ev of userEvents) {
         if (ev.action === "login_success") {
-          if (openLogin) {
-            sessions.push({
-              email,
-              fullName: nameByEmail.get(email) ?? null,
-              role: openLogin.actorId ? (roleByUserId.get(openLogin.actorId) ?? null) : null,
-              loginAt: openLogin.at,
-              logoutAt: null,
-            });
-          }
-          openLogin = { at: ev.created_at, actorId: ev.actor_id };
+          if (openLogin) sessions.push(toSession(email, openLogin, null));
+          openLogin = ev;
         } else if (ev.action === "logout" && openLogin) {
-          sessions.push({
-            email,
-            fullName: nameByEmail.get(email) ?? null,
-            role: openLogin.actorId ? (roleByUserId.get(openLogin.actorId) ?? null) : null,
-            loginAt: openLogin.at,
-            logoutAt: ev.created_at,
-          });
+          sessions.push(toSession(email, openLogin, ev.created_at));
           openLogin = null;
         }
       }
-      if (openLogin) {
-        sessions.push({
-          email,
-          fullName: nameByEmail.get(email) ?? null,
-          role: openLogin.actorId ? (roleByUserId.get(openLogin.actorId) ?? null) : null,
-          loginAt: openLogin.at,
-          logoutAt: null,
-        });
-      }
+      if (openLogin) sessions.push(toSession(email, openLogin, null));
     }
 
     sessions.sort((a, b) => b.loginAt.localeCompare(a.loginAt));

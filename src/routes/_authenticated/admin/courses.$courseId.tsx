@@ -228,6 +228,17 @@ function CourseHeader({
           />
           {coverUrl ? "Replace cover image" : "Add cover image (or drag & drop)"}
         </label>
+        {coverUrl && (
+          <button
+            type="button"
+            onClick={() => setCoverUrl("")}
+            aria-label="Remove cover image"
+            title="Remove cover image"
+            className="absolute right-2 top-2 z-10 rounded-md bg-background/80 p-1.5 text-destructive opacity-0 shadow-card transition-opacity hover:bg-destructive hover:text-destructive-foreground group-hover:opacity-100"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
         {coverProgress !== null && (
           <Progress value={coverProgress} className="absolute bottom-0 left-0 right-0 z-10" />
         )}

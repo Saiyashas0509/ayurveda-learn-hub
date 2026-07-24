@@ -6,6 +6,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { ADMIN_ONLY_ROLES } from "@/lib/auth-helpers";
+import { logAudit } from "@/lib/audit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -178,13 +179,8 @@ export const clearOtpVerification = createServerFn({ method: "POST" })
 export const recordLogout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const email = ((context.claims as { email?: string }).email ?? "").toLowerCase();
-    await supabaseAdmin.from("audit_logs").insert({
-      actor_id: context.userId,
-      actor_email: email,
-      action: "logout",
-    });
+    await logAudit({ actorId: context.userId, actorEmail: email, action: "logout" });
     return { ok: true };
   });
 
@@ -252,10 +248,14 @@ export const recordLoginSuccess = createServerFn({ method: "POST" })
       }
 
       await supabaseAdmin.from("login_attempts").insert({ email, success: true });
-      await supabaseAdmin.from("audit_logs").insert({
-        actor_id: userId,
-        actor_email: email,
+      const amrMethods = ((context.claims as { amr?: { method?: string }[] }).amr ?? []).map(
+        (entry) => entry.method,
+      );
+      await logAudit({
+        actorId: userId,
+        actorEmail: email,
         action: "login_success",
+        metadata: { method: amrMethods.join(",") || "unknown" },
       });
 
       // Enforce password-only auth for admin roles, regardless of how this
@@ -268,12 +268,11 @@ export const recordLoginSuccess = createServerFn({ method: "POST" })
         (ADMIN_ONLY_ROLES as string[]).includes(r.role),
       );
       if (isAdminAccount) {
-        const amr = (context.claims as { amr?: { method?: string }[] }).amr ?? [];
-        const usedPassword = amr.some((entry) => entry.method === "password");
+        const usedPassword = amrMethods.includes("password");
         if (!usedPassword) {
-          await supabaseAdmin.from("audit_logs").insert({
-            actor_id: userId,
-            actor_email: email,
+          await logAudit({
+            actorId: userId,
+            actorEmail: email,
             action: "admin_login_rejected_no_password",
           });
           throw new Error("ADMIN_PASSWORD_REQUIRED");

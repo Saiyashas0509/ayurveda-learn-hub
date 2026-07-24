@@ -59,6 +59,28 @@ function formatDuration(startIso: string, endIso: string): string {
   return `${hrs}h ${rem}m`;
 }
 
+// Lightweight UA -> "Browser on OS" summary. Not exhaustive, just readable —
+// good enough for an admin activity log, not a full device-detection library.
+function summarizeUserAgent(ua: string | null): string {
+  if (!ua) return "—";
+  let os = "Unknown OS";
+  if (/windows/i.test(ua)) os = "Windows";
+  else if (/iphone|ipad/i.test(ua)) os = "iOS";
+  else if (/mac os x/i.test(ua)) os = "macOS";
+  else if (/android/i.test(ua)) os = "Android";
+  else if (/linux/i.test(ua)) os = "Linux";
+
+  let browser = "Unknown browser";
+  if (/edg\//i.test(ua)) browser = "Edge";
+  else if (/chrome\//i.test(ua) && !/chromium/i.test(ua)) browser = "Chrome";
+  else if (/crios\//i.test(ua)) browser = "Chrome";
+  else if (/firefox\//i.test(ua)) browser = "Firefox";
+  else if (/safari\//i.test(ua) && /version\//i.test(ua)) browser = "Safari";
+  else if (/opr\//i.test(ua)) browser = "Opera";
+
+  return `${browser} on ${os}`;
+}
+
 function LoginActivity() {
   const fn = useServerFn(listLoginActivity);
   const { data, isLoading } = useQuery({
@@ -76,6 +98,8 @@ function LoginActivity() {
             <th className={TH}>Logged in</th>
             <th className={TH}>Logged out</th>
             <th className={TH}>Duration</th>
+            <th className={TH}>IP address</th>
+            <th className={TH}>Device / Browser</th>
           </tr>
         </thead>
         <tbody className={TBODY}>
@@ -94,7 +118,12 @@ function LoginActivity() {
                   "—"
                 )}
               </td>
-              <td className={`${TD} whitespace-nowrap`}>{new Date(s.loginAt).toLocaleString()}</td>
+              <td className={`${TD} whitespace-nowrap`}>
+                {new Date(s.loginAt).toLocaleString()}
+                {s.method && (
+                  <span className="ml-1.5 text-xs text-muted-foreground">({s.method})</span>
+                )}
+              </td>
               <td className={`${TD} whitespace-nowrap`}>
                 {s.logoutAt ? (
                   new Date(s.logoutAt).toLocaleString()
@@ -105,11 +134,15 @@ function LoginActivity() {
               <td className={`${TD_MUTED} whitespace-nowrap`}>
                 {s.logoutAt ? formatDuration(s.loginAt, s.logoutAt) : "—"}
               </td>
+              <td className={`${TD_MUTED} whitespace-nowrap font-mono text-xs`}>{s.ip ?? "—"}</td>
+              <td className={`${TD_MUTED} whitespace-nowrap text-xs`}>
+                {summarizeUserAgent(s.userAgent)}
+              </td>
             </tr>
           ))}
           {!isLoading && (!data || data.length === 0) && (
             <tr>
-              <td colSpan={5} className={EMPTY_ROW}>
+              <td colSpan={7} className={EMPTY_ROW}>
                 <LogIn className="mx-auto mb-2 h-6 w-6" />
                 No login activity recorded yet.
               </td>
@@ -129,7 +162,7 @@ function AllEvents() {
         .from("audit_logs")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(300);
       return data ?? [];
     },
   });
@@ -143,22 +176,35 @@ function AllEvents() {
             <th className={TH}>Actor</th>
             <th className={TH}>Action</th>
             <th className={TH}>Target</th>
+            <th className={TH}>IP address</th>
+            <th className={TH}>Details</th>
           </tr>
         </thead>
         <tbody className={TBODY}>
-          {(data ?? []).map((log) => (
-            <tr key={log.id} className={TR}>
-              <td className={`${TD_MUTED} whitespace-nowrap`}>
-                {new Date(log.created_at).toLocaleString()}
-              </td>
-              <td className={TD}>{log.actor_email ?? "—"}</td>
-              <td className={`${TD} font-mono text-xs`}>{log.action}</td>
-              <td className={`${TD_MUTED} text-xs`}>{log.target ?? "—"}</td>
-            </tr>
-          ))}
+          {(data ?? []).map((log) => {
+            const metadata = (log.metadata ?? {}) as Record<string, unknown>;
+            const { user_agent: _ua, ...rest } = metadata;
+            const details = Object.keys(rest).length ? JSON.stringify(rest) : null;
+            return (
+              <tr key={log.id} className={TR}>
+                <td className={`${TD_MUTED} whitespace-nowrap`}>
+                  {new Date(log.created_at).toLocaleString()}
+                </td>
+                <td className={TD}>{log.actor_email ?? "—"}</td>
+                <td className={`${TD} font-mono text-xs`}>{log.action}</td>
+                <td className={`${TD_MUTED} text-xs`}>{log.target ?? "—"}</td>
+                <td className={`${TD_MUTED} whitespace-nowrap font-mono text-xs`}>
+                  {log.ip ?? "—"}
+                </td>
+                <td className={`${TD_MUTED} max-w-xs truncate text-xs`} title={details ?? ""}>
+                  {details ?? "—"}
+                </td>
+              </tr>
+            );
+          })}
           {(!data || data.length === 0) && (
             <tr>
-              <td colSpan={4} className={EMPTY_ROW}>
+              <td colSpan={6} className={EMPTY_ROW}>
                 <ScrollText className="mx-auto mb-2 h-6 w-6" />
                 No events recorded.
               </td>

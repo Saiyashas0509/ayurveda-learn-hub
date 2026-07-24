@@ -2,6 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { logAudit } from "@/lib/audit";
 
 // Roles whose dashboard shows org/team-level stats (orgMembers, orgCompletions,
 // pendingReviews) rather than just personal learning progress — see roleViews.ts.
@@ -149,6 +150,13 @@ export const getCourse = createServerFn({ method: "GET" })
       .from("lesson_progress")
       .select("lesson_id,completed_at")
       .eq("user_id", context.userId);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: (context.claims as { email?: string }).email ?? null,
+      action: "course_viewed",
+      target: course.id,
+      metadata: { title: course.title },
+    });
     return {
       course,
       lessons: lessons ?? [],

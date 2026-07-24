@@ -2,8 +2,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { logAudit } from "@/lib/audit";
 
 const FACULTY_ROLES = ["super_admin", "hr_admin", "trainer", "faculty"] as const;
+
+function actorEmail(context: { claims: unknown }): string | null {
+  return (context.claims as { email?: string }).email ?? null;
+}
 
 async function assertFaculty(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -74,6 +79,13 @@ export const getCourseForEdit = createServerFn({ method: "GET" })
         .order("created_at"),
     ]);
     if (!course.data) throw new Error("Course not found");
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "course_viewed",
+      target: data.courseId,
+      metadata: { title: course.data.title },
+    });
     return {
       course: course.data,
       modules: modules.data ?? [],
@@ -128,6 +140,13 @@ export const upsertCourse = createServerFn({ method: "POST" })
         })
         .eq("id", data.id);
       if (error) throw new Error(error.message);
+      await logAudit({
+        actorId: context.userId,
+        actorEmail: actorEmail(context),
+        action: "course_updated",
+        target: data.id,
+        metadata: { title: data.title },
+      });
       return { id: data.id };
     }
     const base = slugify(data.title) || "course";
@@ -148,6 +167,13 @@ export const upsertCourse = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "course_created",
+      target: inserted.id,
+      metadata: { title: data.title },
+    });
     return { id: inserted.id };
   });
 
@@ -173,6 +199,13 @@ export const createModule = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "module_created",
+      target: row.id,
+      metadata: { title: data.title, courseId: data.courseId },
+    });
     return row;
   });
 
@@ -197,6 +230,12 @@ export const updateModule = createServerFn({ method: "POST" })
         ...(data.description !== undefined ? { description: data.description } : {}),
       })
       .eq("id", data.id);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "module_updated",
+      target: data.id,
+    });
     return { ok: true };
   });
 
@@ -207,6 +246,12 @@ export const deleteModule = createServerFn({ method: "POST" })
     await assertFaculty(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("course_modules").delete().eq("id", data.id);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "module_deleted",
+      target: data.id,
+    });
     return { ok: true };
   });
 
@@ -256,6 +301,13 @@ export const createLesson = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "lesson_created",
+      target: row.id,
+      metadata: { title: data.title, courseId: data.courseId },
+    });
     return row;
   });
 
@@ -328,6 +380,13 @@ export const updateLesson = createServerFn({ method: "POST" })
     if (data.duration_seconds !== undefined) {
       await recomputeCourseDuration(supabaseAdmin, updated.course_id);
     }
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "lesson_updated",
+      target: data.id,
+      metadata: { courseId: updated.course_id, fields: Object.keys(patch) },
+    });
     return { ok: true };
   });
 
@@ -344,6 +403,13 @@ export const deleteLesson = createServerFn({ method: "POST" })
       .select("course_id")
       .single();
     if (deleted) await recomputeCourseDuration(supabaseAdmin, deleted.course_id);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "lesson_deleted",
+      target: data.id,
+      metadata: { courseId: deleted?.course_id },
+    });
     return { ok: true };
   });
 
@@ -426,6 +492,12 @@ export const publishCourse = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("publish_course", { _course_id: data.courseId });
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "course_published",
+      target: data.courseId,
+    });
     return { ok: true };
   });
 
@@ -439,6 +511,12 @@ export const unpublishCourse = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("unpublish_course", { _course_id: data.courseId });
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "course_unpublished",
+      target: data.courseId,
+    });
     return { ok: true };
   });
 
@@ -527,6 +605,13 @@ export const upsertAssignment = createServerFn({ method: "POST" })
     };
     if (data.id) {
       await supabaseAdmin.from("assignments").update(payload).eq("id", data.id);
+      await logAudit({
+        actorId: context.userId,
+        actorEmail: actorEmail(context),
+        action: "assignment_updated",
+        target: data.id,
+        metadata: { title: data.title, courseId: data.course_id },
+      });
       return { id: data.id };
     }
     const { data: row, error } = await supabaseAdmin
@@ -538,6 +623,13 @@ export const upsertAssignment = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "assignment_created",
+      target: row.id,
+      metadata: { title: data.title, courseId: data.course_id },
+    });
     return { id: row.id };
   });
 
@@ -548,5 +640,11 @@ export const deleteAssignment = createServerFn({ method: "POST" })
     await assertFaculty(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("assignments").delete().eq("id", data.id);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "assignment_deleted",
+      target: data.id,
+    });
     return { ok: true };
   });
