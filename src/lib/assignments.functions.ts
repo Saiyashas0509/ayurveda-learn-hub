@@ -118,12 +118,11 @@ export const listSubmissionsForGrading = createServerFn({ method: "GET" })
     if (!(await isFaculty(context.userId))) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // assignment_submissions.user_id references auth.users, not employees —
+    // no FK for PostgREST to embed on. Fetch employee names separately below.
     let q = supabaseAdmin
       .from("assignment_submissions")
-      .select(
-        "*,assignments(title,max_score,rubric,courses(title)),employees!assignment_submissions_user_id_fkey(full_name,email)",
-        { count: "exact" },
-      )
+      .select("*,assignments(title,max_score,rubric,courses(title))", { count: "exact" })
       .order("submitted_at", { ascending: false });
     if (data.assignmentId) q = q.eq("assignment_id", data.assignmentId);
     if (data.status !== "all") q = q.eq("status", data.status);
@@ -135,14 +134,24 @@ export const listSubmissionsForGrading = createServerFn({ method: "GET" })
     const { data: rows, count, error } = await q;
     if (error) throw new Error(error.message);
 
+    const userIds = [...new Set((rows ?? []).map((r) => r.user_id))];
+    const { data: employeeRows } = userIds.length
+      ? await supabaseAdmin.from("employees").select("id,full_name,email").in("id", userIds)
+      : { data: [] as { id: string; full_name: string; email: string }[] };
+    const employeeById = new Map((employeeRows ?? []).map((e) => [e.id, e]));
+    const withEmployees = (rows ?? []).map((r) => ({
+      ...r,
+      employees: employeeById.get(r.user_id) ?? null,
+    }));
+
     // Name/email search filtered post-fetch (joined table); fine at admin panel scale.
     const s = data.search?.trim().toLowerCase();
     const filtered = s
-      ? (rows ?? []).filter((r) => {
+      ? withEmployees.filter((r) => {
           const emp = r.employees as { full_name?: string; email?: string } | null;
           return emp?.full_name?.toLowerCase().includes(s) || emp?.email?.toLowerCase().includes(s);
         })
-      : (rows ?? []);
+      : withEmployees;
 
     const { data: assignments } = await supabaseAdmin
       .from("assignments")

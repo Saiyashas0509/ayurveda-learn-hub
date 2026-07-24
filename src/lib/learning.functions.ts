@@ -77,19 +77,22 @@ export const getMyDashboard = createServerFn({ method: "GET" })
       orgMembers = membersRes.count ?? 0;
       orgCompletions = certsThisMonth.count ?? 0;
     } else if (isOrgScoped && orgId) {
-      const [membersRes, certsThisMonth] = await Promise.all([
-        supabase
-          .from("employees")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId),
-        supabase
-          .from("certificates")
-          .select("id, employees!inner(organization_id)", { count: "exact", head: true })
-          .eq("employees.organization_id", orgId)
-          .gte("issued_at", monthStart.toISOString()),
-      ]);
-      orgMembers = membersRes.count ?? 0;
-      orgCompletions = certsThisMonth.count ?? 0;
+      // certificates.user_id references auth.users, not employees — no FK for
+      // PostgREST to embed on. Resolve org membership as its own step instead.
+      const { data: orgEmployeeRows, count: membersCount } = await supabase
+        .from("employees")
+        .select("id", { count: "exact" })
+        .eq("organization_id", orgId);
+      const orgEmployeeIds = (orgEmployeeRows ?? []).map((e) => e.id);
+      const { count: certsCount } = orgEmployeeIds.length
+        ? await supabase
+            .from("certificates")
+            .select("id", { count: "exact", head: true })
+            .in("user_id", orgEmployeeIds)
+            .gte("issued_at", monthStart.toISOString())
+        : { count: 0 };
+      orgMembers = membersCount ?? 0;
+      orgCompletions = certsCount ?? 0;
     }
 
     if (roleList.some((r) => REVIEWER_ROLES.has(r))) {
@@ -374,18 +377,25 @@ export const verifyCertificate = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row } = await supabaseAdmin
       .from("certificates")
-      .select(
-        "cert_code,issued_at,courses(title),employees!certificates_user_id_fkey(full_name,centers(name))",
-      )
+      .select("cert_code,issued_at,user_id,courses(title)")
       .eq("cert_code", data.code)
       .maybeSingle();
     if (!row) return { cert: null };
+
+    // certificates.user_id references auth.users, not employees — no FK for
+    // PostgREST to embed on. Fetch the employee record as a separate step.
+    const { data: employee } = await supabaseAdmin
+      .from("employees")
+      .select("full_name,centers(name)")
+      .eq("id", row.user_id)
+      .maybeSingle();
+
     return {
       cert: {
         cert_code: row.cert_code,
         issued_at: row.issued_at,
         courses: row.courses,
-        employees: row.employees,
+        employees: employee,
       },
     };
   });

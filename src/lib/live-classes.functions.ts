@@ -134,11 +134,20 @@ export const listClassAttendance = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("live_class_attendance")
-      .select("user_id,joined_at,left_at,employees(full_name,email)")
+      .select("user_id,joined_at,left_at")
       .eq("live_class_id", data.classId)
       .order("joined_at", { ascending: true });
     if (error) throw new Error(error.message);
-    return rows ?? [];
+
+    // live_class_attendance.user_id references auth.users, not employees —
+    // no FK for PostgREST to embed on. Fetch names separately and merge.
+    const userIds = [...new Set((rows ?? []).map((r) => r.user_id))];
+    const { data: employeeRows } = userIds.length
+      ? await supabaseAdmin.from("employees").select("id,full_name,email").in("id", userIds)
+      : { data: [] as { id: string; full_name: string; email: string }[] };
+    const employeeById = new Map((employeeRows ?? []).map((e) => [e.id, e]));
+
+    return (rows ?? []).map((r) => ({ ...r, employees: employeeById.get(r.user_id) ?? null }));
   });
 
 export const getLiveClass = createServerFn({ method: "GET" })
