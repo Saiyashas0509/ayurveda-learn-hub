@@ -2,10 +2,70 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { verifyMediaToken } from "./lib/media-token";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
+
+type MediaEnv = {
+  MEDIA_SIGNING_SECRET?: string;
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+};
+
+const LESSON_MEDIA_PATH = /^\/media\/lessons\/([0-9a-fA-F-]{36})$/;
+
+// Handles /media/lessons/:id directly, before the app router ever sees the
+// request. The client only ever gets this signed-token URL, never the real
+// (Hostinger) video URL — that's fetched here, server-side, and streamed
+// through, so it's never exposed to the browser or saveable as a plain link.
+async function handleLessonMedia(request: Request, env: MediaEnv): Promise<Response | null> {
+  const url = new URL(request.url);
+  const match = url.pathname.match(LESSON_MEDIA_PATH);
+  if (!match) return null;
+  const lessonId = match[1];
+
+  const secret = env.MEDIA_SIGNING_SECRET;
+  const supabaseUrl = env.SUPABASE_URL;
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret || !supabaseUrl || !serviceKey) {
+    return new Response("Media proxy not configured", { status: 500 });
+  }
+
+  const exp = Number(url.searchParams.get("exp"));
+  const sig = url.searchParams.get("sig") ?? "";
+  const valid = await verifyMediaToken(lessonId, exp, sig, secret);
+  if (!valid) return new Response("Forbidden", { status: 403 });
+
+  const lookup = await fetch(
+    `${supabaseUrl}/rest/v1/lessons?id=eq.${lessonId}&select=video_url`,
+    { headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` } },
+  );
+  const rows = (await lookup.json()) as { video_url: string | null }[];
+  const videoUrl = rows[0]?.video_url;
+  if (!videoUrl) return new Response("Not found", { status: 404 });
+
+  const originHeaders = new Headers();
+  const range = request.headers.get("range");
+  if (range) originHeaders.set("range", range);
+
+  const originRes = await fetch(videoUrl, { headers: originHeaders });
+  if (!originRes.ok && originRes.status !== 206) {
+    return new Response("Upstream error", { status: 502 });
+  }
+
+  const headers = new Headers();
+  for (const h of ["content-type", "content-length", "content-range", "accept-ranges", "etag"]) {
+    const v = originRes.headers.get(h);
+    if (v) headers.set(h, v);
+  }
+  headers.set("content-disposition", "inline");
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("cache-control", "private, no-store");
+
+  return new Response(originRes.body, { status: originRes.status, headers });
+}
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
@@ -47,6 +107,9 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const mediaResponse = await handleLessonMedia(request, env as MediaEnv);
+      if (mediaResponse) return mediaResponse;
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

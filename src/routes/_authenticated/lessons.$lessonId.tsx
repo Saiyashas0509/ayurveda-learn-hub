@@ -47,7 +47,14 @@ function LessonPage() {
 
       <div className="aspect-video overflow-hidden rounded-xl border border-border bg-hero shadow-card">
         {l.video_url ? (
-          <video controls className="h-full w-full object-cover" src={l.video_url} />
+          <video
+            controls
+            controlsList="nodownload noremoteplayback"
+            disablePictureInPicture
+            onContextMenu={(e) => e.preventDefault()}
+            className="h-full w-full object-cover"
+            src={l.video_url}
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-primary-foreground/80">
             <div className="text-center">

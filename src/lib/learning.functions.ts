@@ -86,7 +86,22 @@ export const getLesson = createServerFn({ method: "GET" })
       .select("id,title,pass_percent,time_limit_seconds")
       .eq("lesson_id", data.lessonId)
       .maybeSingle();
-    return { lesson, quiz };
+
+    // Never hand the real (Hostinger) video URL to the client — mint a
+    // short-lived signed token for the proxy route instead. Reaching this
+    // point already proves the caller passed RLS on `lessons`, so no extra
+    // authorization check is needed here.
+    let videoUrl: string | null = null;
+    if (lesson.video_url) {
+      const secret = process.env.MEDIA_SIGNING_SECRET;
+      if (secret) {
+        const { signMediaToken } = await import("@/lib/media-token");
+        const { exp, sig } = await signMediaToken(lesson.id, secret);
+        videoUrl = `/media/lessons/${lesson.id}?exp=${exp}&sig=${sig}`;
+      }
+    }
+
+    return { lesson: { ...lesson, video_url: videoUrl }, quiz };
   });
 
 export const markLessonComplete = createServerFn({ method: "POST" })

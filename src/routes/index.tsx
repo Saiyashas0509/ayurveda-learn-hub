@@ -15,22 +15,8 @@ export const Route = createFileRoute("/")({
 function Landing() {
   return (
     <div className="min-h-screen bg-background">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+      <header className="mx-auto flex max-w-6xl items-center px-6 py-5">
         <BrandLogo className="h-10" />
-        <div className="flex items-center gap-2">
-          <Link
-            to="/admin/login"
-            className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Admin Login
-          </Link>
-          <Link
-            to="/auth"
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-card transition-colors hover:bg-primary/90"
-          >
-            Employee Sign In
-          </Link>
-        </div>
       </header>
 
       <section className="relative overflow-hidden">
