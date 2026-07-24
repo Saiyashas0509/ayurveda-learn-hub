@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
-import { LogOut, Menu, X } from "lucide-react";
+import { LifeBuoy, LogOut, Menu, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,13 @@ function useIdleLogout() {
         signOutFully();
       }, IDLE_MS);
     };
-    const events: (keyof WindowEventMap)[] = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    const events: (keyof WindowEventMap)[] = [
+      "mousemove",
+      "keydown",
+      "click",
+      "scroll",
+      "touchstart",
+    ];
     events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
     reset();
     return () => {
@@ -43,16 +49,23 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (!u.user) return null;
       const { data: emp } = await supabase
         .from("employees")
-        .select("full_name,email,designation,primary_role,centers(name),organizations(name,org_type)")
+        .select(
+          "full_name,email,designation,primary_role,centers(name),organizations(name,org_type)",
+        )
         .eq("id", u.user.id)
         .maybeSingle();
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", u.user.id);
       return { employee: emp, roles: (roles ?? []).map((r) => r.role as AppRole) };
     },
   });
 
   const roles = me?.roles ?? [];
-  const primaryRole = (me?.employee?.primary_role as AppRole | null) ?? (roles.length ? pickPrimaryRole(roles) : "student");
+  const primaryRole =
+    (me?.employee?.primary_role as AppRole | null) ??
+    (roles.length ? pickPrimaryRole(roles) : "student");
   const view = ROLE_VIEWS[primaryRole];
   const initials = (me?.employee?.full_name ?? "T A")
     .split(" ")
@@ -61,7 +74,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     .join("")
     .toUpperCase();
   const roleLabel = ROLE_LABELS[primaryRole];
-  const orgName = (me?.employee as { organizations?: { name?: string } } | null | undefined)?.organizations?.name;
+  const orgName = (me?.employee as { organizations?: { name?: string } } | null | undefined)
+    ?.organizations?.name;
 
   return (
     <div className="min-h-screen bg-background">
@@ -72,7 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-          <div className="flex h-full flex-col">
+        <div className="flex h-full flex-col">
           <div className="flex items-center gap-3 border-b border-sidebar-border/60 px-6 py-4">
             <BrandLogo onDark className="h-16" />
           </div>
@@ -80,10 +94,19 @@ export function AppShell({ children }: { children: ReactNode }) {
           <nav className="flex-1 overflow-y-auto px-3 py-4">
             {view.nav.map((group, idx) => (
               <div key={group.label} className={idx > 0 ? "mt-6" : ""}>
-                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">{group.label}</p>
+                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">
+                  {group.label}
+                </p>
                 <div className="space-y-1">
                   {group.items.map((item) => (
-                    <SideLink key={item.to} to={item.to} active={location.pathname === item.to || location.pathname.startsWith(item.to + "/")} onClick={() => setOpen(false)}>
+                    <SideLink
+                      key={item.to}
+                      to={item.to}
+                      active={
+                        location.pathname === item.to || location.pathname.startsWith(item.to + "/")
+                      }
+                      onClick={() => setOpen(false)}
+                    >
                       <item.icon className="h-4 w-4" />
                       {item.label}
                     </SideLink>
@@ -99,7 +122,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {initials}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{me?.employee?.full_name ?? "Employee"}</p>
+                <p className="truncate text-sm font-medium">
+                  {me?.employee?.full_name ?? "Employee"}
+                </p>
                 <p className="truncate text-xs text-sidebar-foreground/70">{roleLabel}</p>
               </div>
               <button
@@ -125,7 +150,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Main */}
       <div className="lg:pl-72">
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur lg:px-8">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen((v) => !v)} aria-label="Toggle menu">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
           <div className="flex-1">
@@ -134,6 +165,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             </p>
           </div>
           <NotificationBell />
+          <Link
+            to="/help"
+            className="hidden items-center gap-1.5 rounded-md border border-input px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent md:inline-flex"
+          >
+            <LifeBuoy className="h-3.5 w-3.5" /> Help
+          </Link>
           <Link
             to="/catalog"
             className="hidden rounded-md border border-input px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent md:inline-flex"
