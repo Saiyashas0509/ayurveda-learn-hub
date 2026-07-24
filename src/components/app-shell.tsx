@@ -18,7 +18,7 @@ import { EMPLOYEE_TOUR_STEPS, ADMIN_TOUR_STEPS } from "@/config/tourSteps";
 // faculty/org-admin roles with partial admin access) gets the employee tour.
 const FULL_ADMIN_ROLES = new Set(["super_admin", "hr_admin"]);
 
-const IDLE_MS = 2 * 60 * 60 * 1000; // 2 hour auto logout
+const IDLE_MS = 30 * 60 * 1000; // 30 min auto logout
 
 function useIdleLogout() {
   useEffect(() => {
