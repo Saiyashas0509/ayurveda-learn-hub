@@ -3,7 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { verifyMediaToken } from "./lib/media-token";
-import { ftpDelete, ftpUploadFile } from "./lib/ftp-client.server";
+import { ftpDelete, ftpList, ftpUploadFile } from "./lib/ftp-client.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -40,7 +40,7 @@ function sanitizeUploadFilename(name: string): string {
 async function handleVideoUpload(request: Request, env: UploadEnv): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname !== VIDEO_UPLOAD_PATH) return null;
-  if (request.method !== "POST" && request.method !== "DELETE") {
+  if (request.method !== "POST" && request.method !== "DELETE" && request.method !== "GET") {
     return new Response("Method not allowed", { status: 405 });
   }
 
@@ -79,6 +79,27 @@ async function handleVideoUpload(request: Request, env: UploadEnv): Promise<Resp
   }
 
   const ftpConfig = { host: FTP_HOST, port: FTP_PORT, user: FTP_USER, password: FTP_PASSWORD };
+
+  if (request.method === "GET") {
+    // Lists what's already on Hostinger so admins can pick an existing file
+    // instead of re-uploading, and pastes back the ready-to-use public URL.
+    try {
+      const listing = await ftpList(ftpConfig, VIDEO_REMOTE_DIR);
+      const files = listing
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("d") && !/\s\.\.?$/.test(line))
+        .map((line) => line.split(/\s+/).slice(8).join(" "))
+        .filter((name) => name && name !== "default.php")
+        .map((name) => ({ name, url: `${VIDEO_PUBLIC_BASE}/${encodeURIComponent(name)}` }));
+      return new Response(JSON.stringify({ files }), {
+        headers: { "content-type": "application/json" },
+      });
+    } catch (err) {
+      console.error("[upload-video] FTP list failed:", err);
+      return new Response(JSON.stringify({ error: "List failed" }), { status: 502 });
+    }
+  }
 
   if (request.method === "DELETE") {
     // Only ever touches files inside VIDEO_REMOTE_DIR — filename is sanitized

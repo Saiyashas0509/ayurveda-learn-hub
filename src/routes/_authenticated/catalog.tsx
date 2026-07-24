@@ -12,9 +12,7 @@ export const Route = createFileRoute("/_authenticated/catalog")({
 
 function Catalog() {
   const fn = useServerFn(listCatalog);
-  const { data } = useSuspenseQuery(
-    queryOptions({ queryKey: ["catalog"], queryFn: () => fn() }),
-  );
+  const { data } = useSuspenseQuery(queryOptions({ queryKey: ["catalog"], queryFn: () => fn() }));
   const [q, setQ] = useState("");
 
   const filtered = data.courses.filter(
@@ -31,7 +29,13 @@ function Catalog() {
 
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search courses…" className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} maxLength={80} />
+        <Input
+          placeholder="Search courses…"
+          className="pl-9"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          maxLength={80}
+        />
       </div>
 
       {filtered.length === 0 ? (
@@ -48,9 +52,17 @@ function Catalog() {
               params={{ slug: c.slug }}
               className="group flex flex-col rounded-xl border border-border bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elevated"
             >
-              <div className="mb-3 h-32 rounded-lg bg-hero" />
-              <h3 className="font-display text-lg font-semibold group-hover:text-primary">{c.title}</h3>
-              <p className="mt-2 line-clamp-3 flex-1 text-sm text-muted-foreground">{c.description}</p>
+              <div className="mb-3 h-32 overflow-hidden rounded-lg bg-hero">
+                {c.cover_url && (
+                  <img src={c.cover_url} alt="" className="h-full w-full object-cover" />
+                )}
+              </div>
+              <h3 className="font-display text-lg font-semibold group-hover:text-primary">
+                {c.title}
+              </h3>
+              <p className="mt-2 line-clamp-3 flex-1 text-sm text-muted-foreground">
+                {c.description}
+              </p>
               <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock className="h-3.5 w-3.5" /> {c.duration_minutes ?? 0} min
               </div>

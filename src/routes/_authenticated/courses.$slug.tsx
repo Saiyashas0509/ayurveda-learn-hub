@@ -19,7 +19,18 @@ function CoursePage() {
 
   return (
     <div className="space-y-8">
-      <div className="rounded-2xl bg-hero p-8 text-primary-foreground shadow-elevated">
+      <div
+        className="relative overflow-hidden rounded-2xl bg-hero p-8 text-primary-foreground shadow-elevated"
+        style={
+          data.course.cover_url
+            ? {
+                backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(${data.course.cover_url})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }
+            : undefined
+        }
+      >
         <p className="text-xs uppercase tracking-[0.2em] text-gold">Course</p>
         <h1 className="mt-2 font-display text-3xl font-semibold">{data.course.title}</h1>
         <p className="mt-3 max-w-2xl text-primary-foreground/80">{data.course.description}</p>
@@ -35,10 +46,18 @@ function CoursePage() {
           </span>
         </div>
         <div className="mt-5 flex flex-wrap gap-3 text-sm">
-          <Link to="/discussions/$courseId" params={{ courseId: data.course.id }} className="inline-flex items-center gap-2 rounded-md bg-primary-foreground/10 px-3 py-1.5 hover:bg-primary-foreground/20">
+          <Link
+            to="/discussions/$courseId"
+            params={{ courseId: data.course.id }}
+            className="inline-flex items-center gap-2 rounded-md bg-primary-foreground/10 px-3 py-1.5 hover:bg-primary-foreground/20"
+          >
             <MessagesSquare className="h-4 w-4" /> Discussions
           </Link>
-          <Link to="/live" search={{ courseId: data.course.id }} className="inline-flex items-center gap-2 rounded-md bg-primary-foreground/10 px-3 py-1.5 hover:bg-primary-foreground/20">
+          <Link
+            to="/live"
+            search={{ courseId: data.course.id }}
+            className="inline-flex items-center gap-2 rounded-md bg-primary-foreground/10 px-3 py-1.5 hover:bg-primary-foreground/20"
+          >
             <Video className="h-4 w-4" /> Live Classes
           </Link>
         </div>

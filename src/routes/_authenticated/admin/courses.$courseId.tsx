@@ -36,7 +36,8 @@ import {
   deleteAssignment,
 } from "@/lib/course-builder.functions";
 import { uploadToBucket } from "@/lib/upload-helper";
-import { uploadVideoToHostinger } from "@/lib/upload-video";
+import { uploadVideoToHostinger, resolveVideoUrl, filenameFromVideoUrl } from "@/lib/upload-video";
+import { detectVideoDurationSeconds } from "@/lib/video-duration";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -141,6 +142,9 @@ function CourseHeader({
   const [title, setTitle] = useState(course.title);
   const [desc, setDesc] = useState(course.description ?? "");
   const [preview, setPreview] = useState(course.preview_allowed);
+  const [coverUrl, setCoverUrl] = useState(course.cover_url ?? "");
+  const [coverProgress, setCoverProgress] = useState<number | null>(null);
+  const [coverDragOver, setCoverDragOver] = useState(false);
 
   const saveMut = useMutation({
     mutationFn: () =>
@@ -150,6 +154,7 @@ function CourseHeader({
           title,
           description: desc,
           preview_allowed: preview,
+          cover_url: coverUrl || null,
         },
       }),
     onSuccess: () => {
@@ -158,6 +163,28 @@ function CourseHeader({
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
+
+  const uploadCover = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please drop an image file");
+      return;
+    }
+    setCoverProgress(0);
+    try {
+      const { publicUrl } = await uploadToBucket({
+        bucket: "course-media",
+        file,
+        pathPrefix: `courses/${course.id}/cover`,
+        onProgress: setCoverProgress,
+      });
+      setCoverUrl(publicUrl);
+      toast.success("Cover image uploaded");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setCoverProgress(null);
+    }
+  };
 
   const pubMut = useMutation({
     mutationFn: () =>
@@ -173,6 +200,39 @@ function CourseHeader({
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
+      <div
+        className={`group relative mb-4 flex h-32 items-center justify-center overflow-hidden rounded-lg border transition-colors ${
+          coverDragOver ? "border-primary bg-primary/5" : "border-border bg-hero"
+        }`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setCoverDragOver(true);
+        }}
+        onDragLeave={() => setCoverDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setCoverDragOver(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) uploadCover(file);
+        }}
+      >
+        {coverUrl && (
+          <img src={coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        )}
+        <label className="relative z-10 cursor-pointer rounded-md bg-background/80 px-3 py-1.5 text-xs font-medium opacity-0 shadow-card transition-opacity group-hover:opacity-100">
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && uploadCover(e.target.files[0])}
+          />
+          {coverUrl ? "Replace cover image" : "Add cover image (or drag & drop)"}
+        </label>
+        {coverProgress !== null && (
+          <Progress value={coverProgress} className="absolute bottom-0 left-0 right-0 z-10" />
+        )}
+      </div>
+
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 space-y-3">
           <Input
@@ -541,7 +601,10 @@ function LessonEditor({
   const [title, setTitle] = useState(lesson.title);
   const [desc, setDesc] = useState(lesson.description ?? "");
   const [preview, setPreview] = useState(lesson.preview_allowed);
-  const [videoUrl, setVideoUrl] = useState(lesson.video_url ?? "");
+  // What's actually typed in the field — a bare filename in the common case,
+  // or a full URL for external videos. resolveVideoUrl() turns this into the
+  // real URL wherever it's needed (save, duration detection).
+  const [videoInput, setVideoInput] = useState(filenameFromVideoUrl(lesson.video_url ?? ""));
   const [durationMinutes, setDurationMinutes] = useState(
     Math.round(((lesson.duration_seconds ?? 0) / 60) * 10) / 10,
   );
@@ -552,9 +615,30 @@ function LessonEditor({
   const [resProgress, setResProgress] = useState<number | null>(null);
   const [newQuizTitle, setNewQuizTitle] = useState("");
   const [videoDragOver, setVideoDragOver] = useState(false);
+  const [detectingDuration, setDetectingDuration] = useState(false);
 
   const attachedQuiz = quizzes.find((q) => q.lesson_id === lesson.id) ?? null;
   const availableQuizzes = quizzes.filter((q) => !q.lesson_id || q.lesson_id === lesson.id);
+
+  const detectDuration = async (url: string) => {
+    if (!url) return;
+    setDetectingDuration(true);
+    try {
+      const seconds = await detectVideoDurationSeconds(url);
+      if (seconds !== null) setDurationMinutes(Math.round((seconds / 60) * 10) / 10);
+    } finally {
+      setDetectingDuration(false);
+    }
+  };
+
+  // Backfill: if this lesson already has a video but no duration on record
+  // (e.g. the URL was pasted in before this feature existed), detect it once.
+  useEffect(() => {
+    if (lesson.video_url && !lesson.duration_seconds) {
+      detectDuration(lesson.video_url);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const save = () =>
     update({
@@ -562,7 +646,7 @@ function LessonEditor({
         id: lesson.id,
         title,
         description: desc,
-        video_url: videoUrl || null,
+        video_url: resolveVideoUrl(videoInput) || null,
         duration_seconds: Math.round((Number(durationMinutes) || 0) * 60),
         preview_allowed: preview,
         resources,
@@ -581,8 +665,9 @@ function LessonEditor({
     setVideoProgress(0);
     try {
       const url = await uploadVideoToHostinger(file, setVideoProgress);
-      setVideoUrl(url);
+      setVideoInput(filenameFromVideoUrl(url));
       toast.success("Video uploaded");
+      await detectDuration(url);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -657,18 +742,23 @@ function LessonEditor({
               </label>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Drag and drop a video file here, or click Upload. Uploads directly to secure storage —
-              the URL fills in automatically.
+              Drag and drop a video file here, click Upload, or just type the filename below (as
+              shown in Hostinger's File Manager) — no need to paste the full link. Duration fills in
+              automatically once the video is found.
             </p>
             <Input
               className="mt-2"
-              placeholder="https://videos.example.com/lesson.mp4"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="lesson-video.mp4  (or a full https:// URL)"
+              value={videoInput}
+              onChange={(e) => setVideoInput(e.target.value)}
+              onBlur={(e) => detectDuration(resolveVideoUrl(e.target.value))}
             />
             {videoProgress !== null && <Progress value={videoProgress} className="mt-2" />}
             <div className="mt-2 flex items-center gap-2">
               <Label className="text-xs">Duration (min)</Label>
+              {detectingDuration && (
+                <span className="text-xs text-muted-foreground">Detecting from video…</span>
+              )}
               <Input
                 type="number"
                 step="0.5"
