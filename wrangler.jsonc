@@ -3,5 +3,17 @@
   "name": "saiyashas0509-ayurveda-learn-hub",
   "compatibility_date": "2026-07-01",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts"
+  "main": "src/server.ts",
+  "ai": {
+    // Runs Whisper directly on the Cloudflare account already hosting this
+    // app — no separate signup/API key. Free daily allocation (10,000
+    // "neurons"), then fractions of a cent per audio-minute beyond that.
+    "binding": "AI"
+  },
+  "triggers": {
+    // Daily at 03:00 UTC — checks for certificates entering their last 30
+    // days before expiry and emails the learner once. Free on Workers'
+    // standard plan (Cron Triggers don't require Workers Paid).
+    "crons": ["0 3 * * *"]
+  }
 }

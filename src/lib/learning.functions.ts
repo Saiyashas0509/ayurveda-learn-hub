@@ -4,10 +4,22 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { logAudit } from "@/lib/audit";
 import { PLATFORM_WIDE_ROLES, ORG_SCOPED_ROLES } from "@/lib/auth-helpers";
+import { computeCertificateExpiry } from "@/lib/cert-expiry";
+import { orderCourseLessons } from "@/lib/lesson-order";
+import { isVideoWatchRequirementMet } from "@/lib/video-watch-rules";
 
 const PLATFORM_WIDE_ROLE_SET = new Set(PLATFORM_WIDE_ROLES);
 const ORG_SCOPED_ROLE_SET = new Set(ORG_SCOPED_ROLES);
 const REVIEWER_ROLES = new Set(["doctor", "faculty", "trainer"]);
+
+// TEMPORARY: lesson_progress.skip_detected doesn't exist in the live DB yet
+// (pending migration 20260725160000_quiz_autogen_and_video_skip.sql) — every
+// place below that would normally select/write it is hardcoded to skip it
+// instead, search "TEMP-NO-SKIP-COLUMN" for each spot. Once that migration
+// has actually been run, restore skip_detected in each of those selects/
+// upserts and delete this note. Until then, completion is gated on
+// watched_seconds alone (still real enforcement, just missing the extra
+// backstop against direct devtools/API tampering with playback position).
 
 export const getMyDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -120,14 +132,8 @@ export const listCatalog = createServerFn({ method: "GET" })
     return { courses: courses ?? [] };
   });
 
-// Lesson.sort_order is only unique *within a module* (see reorderLessons in
-// course-builder.functions.ts), not across the whole course — so ordering
-// lessons by sort_order alone interleaves modules arbitrarily instead of
-// giving a real course-wide sequence. This resolves the true sequence:
-// modules by their own sort_order, lessons within each by their sort_order,
-// with any module-less lessons appended last by their own sort_order.
-// Used for sequential lesson unlocking (a lesson requires the previous one
-// in this sequence to be completed).
+// Fetches a course's modules/lessons and hands them to the pure
+// orderCourseLessons (lesson-order.ts) for the actual sequencing logic.
 async function orderedLessonIds(
   supabase: { from: (table: string) => any }, // eslint-disable-line @typescript-eslint/no-explicit-any
   courseId: string,
@@ -140,20 +146,7 @@ async function orderedLessonIds(
       .eq("course_id", courseId)
       .order("sort_order"),
   ]);
-  const moduleOrder = new Map(
-    ((modules ?? []) as { id: string; sort_order: number }[])
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((m, i) => [m.id, i]),
-  );
-  const rows = (lessons ?? []) as { id: string; module_id: string | null; sort_order: number }[];
-  const assigned = rows.filter((l) => l.module_id && moduleOrder.has(l.module_id));
-  const unassigned = rows.filter((l) => !l.module_id || !moduleOrder.has(l.module_id));
-  assigned.sort((a, b) => {
-    const mo = (moduleOrder.get(a.module_id!) ?? 0) - (moduleOrder.get(b.module_id!) ?? 0);
-    return mo !== 0 ? mo : a.sort_order - b.sort_order;
-  });
-  unassigned.sort((a, b) => a.sort_order - b.sort_order);
-  return [...assigned, ...unassigned].map((l) => l.id);
+  return orderCourseLessons(modules ?? [], lessons ?? []);
 }
 
 export const getCourse = createServerFn({ method: "GET" })
@@ -201,6 +194,62 @@ export const getCourse = createServerFn({ method: "GET" })
   });
 
 const FACULTY_ROLE_SET = new Set(["super_admin", "hr_admin", "trainer", "faculty"]);
+
+export const getCourseRatings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { courseId: string }) =>
+    z.object({ courseId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: rows } = await context.supabase
+      .from("course_ratings")
+      .select("rating,user_id")
+      .eq("course_id", data.courseId);
+    const all = rows ?? [];
+    const count = all.length;
+    const average = count
+      ? Math.round((all.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10
+      : null;
+    const mine = all.find((r) => r.user_id === context.userId)?.rating ?? null;
+    return { average, count, myRating: mine };
+  });
+
+export const submitCourseRating = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { courseId: string; rating: number; comment?: string }) =>
+    z
+      .object({
+        courseId: z.string().uuid(),
+        rating: z.number().int().min(1).max(5),
+        comment: z.string().trim().max(2000).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    // Only learners who've actually made progress in the course may rate it
+    // — otherwise anyone with a link could leave a review on a course
+    // they've never opened.
+    const { data: progressRow } = await context.supabase
+      .from("lesson_progress")
+      .select("id, lessons!inner(course_id)")
+      .eq("user_id", context.userId)
+      .eq("lessons.course_id", data.courseId)
+      .limit(1)
+      .maybeSingle();
+    if (!progressRow) throw new Error("Start the course before rating it");
+
+    const { error } = await context.supabase.from("course_ratings").upsert(
+      {
+        course_id: data.courseId,
+        user_id: context.userId,
+        rating: data.rating,
+        comment: data.comment ?? null,
+      },
+      { onConflict: "course_id,user_id" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
 
 export const getLesson = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -254,6 +303,14 @@ export const getLesson = createServerFn({ method: "GET" })
       .eq("lesson_id", data.lessonId)
       .maybeSingle();
 
+    const { data: progress } = await context.supabase
+      .from("lesson_progress")
+      .select("watched_seconds,completed_at") // TEMP-NO-SKIP-COLUMN
+      .eq("user_id", context.userId)
+      .eq("lesson_id", data.lessonId)
+      .maybeSingle();
+    const progressSkipDetected = false; // TEMP-NO-SKIP-COLUMN
+
     // Never hand the real (Hostinger) video URL to the client — mint a
     // short-lived signed token for the proxy route instead. Reaching this
     // point already proves the caller passed RLS on `lessons`, so no extra
@@ -276,7 +333,100 @@ export const getLesson = createServerFn({ method: "GET" })
       metadata: { title: lesson.title, courseId: lesson.course_id },
     });
 
-    return { lesson: { ...lesson, video_url: videoUrl }, quiz, locked: false };
+    return {
+      lesson: { ...lesson, video_url: videoUrl },
+      quiz,
+      locked: false,
+      watchProgress: {
+        watchedSeconds: progress?.watched_seconds ?? 0,
+        skipDetected: progressSkipDetected,
+        completed: !!progress?.completed_at,
+        videoWatchRequirementMet: isVideoWatchRequirementMet(
+          lesson.duration_seconds,
+          progress?.watched_seconds ?? 0,
+          progressSkipDetected,
+        ),
+      },
+    };
+  });
+
+// Periodic heartbeat from the lesson video player (see lessons.$lessonId.tsx)
+// — reports the furthest playback position reached, and whether a forward
+// skip was ever detected client-side. Both are sticky in the stored sense
+// that this never lets watched progress move backward or a skip flag clear:
+// a client resending a lower position or skipDetected:false can't undo an
+// already-recorded skip or rewind reported progress.
+export const updateVideoProgress = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (data: {
+      lessonId: string;
+      watchedSeconds: number;
+      skipDetected: boolean;
+      durationSeconds?: number;
+    }) =>
+      z
+        .object({
+          lessonId: z.string().uuid(),
+          // lesson_progress.watched_seconds is a Postgres integer column, but
+          // video.currentTime (what the client sends) is always fractional
+          // (e.g. 11.974902) — without rounding here, every single report was
+          // rejected with "invalid input syntax for type integer" and silently
+          // swallowed by the player's own .catch(), meaning watched progress
+          // was never actually persisted despite the video visibly playing to
+          // completion. Caught via a real full-playthrough test, not inferred.
+          watchedSeconds: z.number().min(0).max(36000).transform(Math.floor),
+          skipDetected: z.boolean(),
+          // The video element's own (real, measured) duration — see below.
+          durationSeconds: z.number().min(0).max(36000).optional(),
+        })
+        .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: existing } = await context.supabase
+      .from("lesson_progress")
+      .select("watched_seconds") // TEMP-NO-SKIP-COLUMN
+      .eq("user_id", context.userId)
+      .eq("lesson_id", data.lessonId)
+      .maybeSingle();
+    // data.skipDetected is still received from the client and simply
+    // dropped here for now — TEMP-NO-SKIP-COLUMN.
+    const { error } = await context.supabase.from("lesson_progress").upsert(
+      {
+        user_id: context.userId,
+        lesson_id: data.lessonId,
+        watched_seconds: Math.max(existing?.watched_seconds ?? 0, data.watchedSeconds),
+      },
+      { onConflict: "user_id,lesson_id" },
+    );
+    if (error) throw new Error(error.message);
+
+    // Self-heals lessons.duration_seconds against what the video element
+    // itself actually measures — found via real testing that this can drift
+    // from reality (a lesson had 147 stored vs. an actual 126.4s), which
+    // silently made the "watch 98% of the video" gate in markLessonComplete/
+    // startQuizAttempt impossible to satisfy even after watching 100% of the
+    // real video, since those checks read the (wrong) stored value. Only
+    // faculty can write to `lessons` normally, so this uses the admin client
+    // — safe here because it's a narrow, server-computed correction, not
+    // arbitrary client-supplied content.
+    const roundedDuration = data.durationSeconds ? Math.round(data.durationSeconds) : null;
+    if (roundedDuration && roundedDuration > 0) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: lesson } = await supabaseAdmin
+        .from("lessons")
+        .select("duration_seconds")
+        .eq("id", data.lessonId)
+        .maybeSingle();
+      if (!lesson?.duration_seconds || Math.abs(lesson.duration_seconds - roundedDuration) > 2) {
+        await supabaseAdmin
+          .from("lessons")
+          .update({ duration_seconds: roundedDuration })
+          .eq("id", data.lessonId);
+      }
+    }
+
+    return { ok: true };
   });
 
 export const markLessonComplete = createServerFn({ method: "POST" })
@@ -285,12 +435,41 @@ export const markLessonComplete = createServerFn({ method: "POST" })
     z.object({ lessonId: z.string().uuid() }).parse(data),
   )
   .handler(async ({ data, context }) => {
+    // Server-side enforcement of "watched the whole video, no skipping" —
+    // the client already gates the Mark Complete button on this, but that's
+    // only UX; this is what actually stops someone from calling the API
+    // directly to skip the check.
+    const { data: lesson } = await context.supabase
+      .from("lessons")
+      .select("video_url,duration_seconds")
+      .eq("id", data.lessonId)
+      .maybeSingle();
+    if (lesson?.video_url) {
+      const { data: progress } = await context.supabase
+        .from("lesson_progress")
+        .select("watched_seconds") // TEMP-NO-SKIP-COLUMN
+        .eq("user_id", context.userId)
+        .eq("lesson_id", data.lessonId)
+        .maybeSingle();
+      const skipDetected = false; // TEMP-NO-SKIP-COLUMN
+      if (
+        !isVideoWatchRequirementMet(
+          lesson.duration_seconds,
+          progress?.watched_seconds ?? 0,
+          skipDetected,
+        )
+      ) {
+        throw new Error(
+          "Watch the entire video, from start to finish without skipping ahead, before marking this lesson complete.",
+        );
+      }
+    }
+
     await context.supabase.from("lesson_progress").upsert(
       {
         user_id: context.userId,
         lesson_id: data.lessonId,
         completed_at: new Date().toISOString(),
-        watched_seconds: 0,
       },
       { onConflict: "user_id,lesson_id" },
     );
@@ -316,6 +495,43 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
       .eq("id", data.quizId)
       .maybeSingle();
     if (!quiz) throw new Error("Quiz not found");
+
+    // Same "watched the whole video, no skipping" gate as markLessonComplete
+    // — a quiz built from a video's own content shouldn't be answerable by
+    // someone who skipped straight to it without watching.
+    if (quiz.lesson_id) {
+      const { data: lesson } = await supabaseAdmin
+        .from("lessons")
+        .select("video_url,duration_seconds")
+        .eq("id", quiz.lesson_id)
+        .maybeSingle();
+      if (lesson?.video_url) {
+        const { data: progress } = await supabaseAdmin
+          .from("lesson_progress")
+          .select("watched_seconds") // TEMP-NO-SKIP-COLUMN
+          .eq("user_id", context.userId)
+          .eq("lesson_id", quiz.lesson_id)
+          .maybeSingle();
+        const skipDetected = false; // TEMP-NO-SKIP-COLUMN
+        if (
+          !isVideoWatchRequirementMet(
+            lesson.duration_seconds,
+            progress?.watched_seconds ?? 0,
+            skipDetected,
+          )
+        ) {
+          throw new Error(
+            "Watch the entire video, without skipping ahead, before starting this quiz.",
+          );
+        }
+      }
+    }
+
+    const { count: attemptCount } = await supabaseAdmin
+      .from("quiz_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("quiz_id", data.quizId)
+      .eq("user_id", context.userId);
 
     const { data: questions } = await supabaseAdmin
       .from("questions")
@@ -343,7 +559,13 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    return { quiz, attemptId: attempt.id, startedAt: attempt.started_at, questions: sanitized };
+    return {
+      quiz,
+      attemptId: attempt.id,
+      startedAt: attempt.started_at,
+      questions: sanitized,
+      attemptNumber: (attemptCount ?? 0) + 1,
+    };
   });
 
 export const submitQuizAttempt = createServerFn({ method: "POST" })
@@ -366,7 +588,9 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
 
     const { data: attempt } = await supabaseAdmin
       .from("quiz_attempts")
-      .select("id,user_id,quiz_id,finished_at,quizzes(id,pass_percent,course_id,lesson_id)")
+      .select(
+        "id,user_id,quiz_id,finished_at,quizzes(id,pass_percent,course_id,lesson_id,courses(renewal_period_months))",
+      )
       .eq("id", data.attemptId)
       .maybeSingle();
     if (!attempt || attempt.user_id !== context.userId) throw new Error("Attempt not found");
@@ -417,6 +641,12 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
         certCode = existing.cert_code;
       } else {
         const code = `TA-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+        const renewalMonths = (
+          attempt.quizzes as unknown as {
+            courses?: { renewal_period_months?: number | null } | null;
+          }
+        ).courses?.renewal_period_months;
+        const expiresAt = computeCertificateExpiry(renewalMonths);
         const { data: inserted } = await supabaseAdmin
           .from("certificates")
           .insert({
@@ -424,33 +654,50 @@ export const submitQuizAttempt = createServerFn({ method: "POST" })
             course_id: attempt.quizzes.course_id,
             cert_code: code,
             score_percent: score,
+            expires_at: expiresAt,
           })
           .select("cert_code")
           .single();
         certCode = inserted?.cert_code ?? code;
+        if (inserted?.cert_code) {
+          const { generateCertificatePdf } = await import("@/lib/certificate-pdf-server");
+          await generateCertificatePdf(supabaseAdmin, inserted.cert_code).catch((e) =>
+            console.error("Certificate PDF generation failed", e),
+          );
+        }
       }
       if (attempt.quizzes.lesson_id) {
+        // Passing a lesson's quiz completes that lesson too — reaching this
+        // point already proves the video-watch requirement was met (startQuizAttempt
+        // won't hand out an attempt otherwise), so watched_seconds/skip_detected
+        // are left untouched here rather than overwritten.
         await supabaseAdmin.from("lesson_progress").upsert(
           {
             user_id: context.userId,
             lesson_id: attempt.quizzes.lesson_id,
             completed_at: new Date().toISOString(),
-            watched_seconds: 0,
           },
           { onConflict: "user_id,lesson_id" },
         );
       }
     }
 
+    const { count: attemptCount } = await supabaseAdmin
+      .from("quiz_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("quiz_id", attempt.quiz_id)
+      .eq("user_id", context.userId)
+      .not("finished_at", "is", null);
+
     await logAudit({
       actorId: context.userId,
       actorEmail: (context.claims as { email?: string }).email ?? null,
       action: "quiz_attempt_submitted",
       target: data.attemptId,
-      metadata: { quizId: attempt.quiz_id, score, passed },
+      metadata: { quizId: attempt.quiz_id, score, passed, attemptNumber: attemptCount ?? 1 },
     });
 
-    return { score, passed, certCode };
+    return { score, passed, certCode, attemptNumber: attemptCount ?? 1 };
   });
 
 export const listMyCertificates = createServerFn({ method: "GET" })
@@ -462,6 +709,43 @@ export const listMyCertificates = createServerFn({ method: "GET" })
       .eq("user_id", context.userId)
       .order("issued_at", { ascending: false });
     return data ?? [];
+  });
+
+// Returns a short-lived signed URL to the server-generated certificate PDF
+// (with QR code), lazily generating it if this cert predates that feature.
+export const getCertificateDownloadUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { certCode: string }) =>
+    z.object({ certCode: z.string().trim().max(64) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: cert } = await supabaseAdmin
+      .from("certificates")
+      .select("user_id")
+      .eq("cert_code", data.certCode)
+      .maybeSingle();
+    if (!cert) throw new Error("Certificate not found");
+    if (cert.user_id !== context.userId) {
+      const { data: roles } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", context.userId)
+        .in("role", ["super_admin", "hr_admin"]);
+      if (!roles || !roles.length) throw new Error("Certificate not found");
+    }
+
+    const path = `${data.certCode}.pdf`;
+    const exists = await supabaseAdmin.storage.from("certificates").list("", { search: path });
+    if (!exists.data?.some((f) => f.name === path)) {
+      const { generateCertificatePdf } = await import("@/lib/certificate-pdf-server");
+      await generateCertificatePdf(supabaseAdmin, data.certCode);
+    }
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("certificates")
+      .createSignedUrl(path, 300);
+    if (error) throw new Error(error.message);
+    return { url: signed.signedUrl };
   });
 
 // Public: verify a certificate by code (no auth required).

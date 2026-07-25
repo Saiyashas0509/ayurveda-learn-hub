@@ -21,7 +21,9 @@ function DemoQuizPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">Assessment preview</p>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          Assessment preview
+        </p>
         <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">{data.quiz.title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Passing score {data.quiz.pass_percent}% · {data.questions.length} questions
@@ -31,19 +33,28 @@ function DemoQuizPage() {
       <div className="flex items-start gap-3 rounded-lg border border-gold/40 bg-gold/10 p-4 text-sm">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold-foreground" />
         <div>
-          You're previewing this quiz in demo mode. Answers aren't scored and no certificate is issued.{" "}
-          <Link to="/auth" className="font-semibold underline">Sign in</Link> to take it for real.
+          You're previewing this quiz in demo mode. Answers aren't scored and no certificate is
+          issued.{" "}
+          <Link to="/auth" className="font-semibold underline">
+            Sign in
+          </Link>{" "}
+          to take it for real.
         </div>
       </div>
 
       <ol className="space-y-6">
         {data.questions.map((q, i) => (
           <li key={q.id} className="rounded-xl border border-border bg-card p-6 shadow-card">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Question {i + 1}</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">
+              Question {i + 1}
+            </p>
             <p className="mt-2 font-medium">{q.prompt}</p>
             <ul className="mt-4 space-y-2">
               {q.options.map((o) => (
-                <li key={o.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent">
+                <li
+                  key={o.id}
+                  className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent"
+                >
                   <span className="h-4 w-4 rounded-full border border-border" />
                   {o.text}
                 </li>

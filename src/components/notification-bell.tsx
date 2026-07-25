@@ -26,11 +26,23 @@ export function NotificationBell() {
     supabase.auth.getUser().then(({ data: u }) => {
       userId = u.user?.id;
       if (!userId) return;
-      ch = supabase.channel(`notifs:${userId}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, () => refetch())
+      ch = supabase
+        .channel(`notifs:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userId}`,
+          },
+          () => refetch(),
+        )
         .subscribe();
     });
-    return () => { if (ch) supabase.removeChannel(ch); };
+    return () => {
+      if (ch) supabase.removeChannel(ch);
+    };
   }, [refetch]);
 
   const markAll = useMutation({ mutationFn: () => markAllFn(), onSuccess: () => refetch() });
@@ -53,23 +65,39 @@ export function NotificationBell() {
       <PopoverContent className="w-96 p-0" align="end">
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <p className="text-sm font-medium">Notifications</p>
-          <Button size="sm" variant="ghost" onClick={() => markAll.mutate()}>Mark all read</Button>
+          <Button size="sm" variant="ghost" onClick={() => markAll.mutate()}>
+            Mark all read
+          </Button>
         </div>
         <div className="max-h-80 overflow-y-auto">
-          {items.length === 0 && <p className="p-6 text-center text-sm text-muted-foreground">You're all caught up.</p>}
+          {items.length === 0 && (
+            <p className="p-6 text-center text-sm text-muted-foreground">You're all caught up.</p>
+          )}
           {items.map((n) => (
-            <button key={n.id} onClick={() => {
-              markFn({ data: { ids: [n.id], read: true } }).then(() => refetch());
-              if (n.link) navigate({ to: n.link });
-            }} className={`block w-full border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-accent/40 ${n.is_read ? "" : "bg-primary/5"}`}>
+            <button
+              key={n.id}
+              onClick={() => {
+                markFn({ data: { ids: [n.id], read: true } }).then(() => refetch());
+                if (n.link) navigate({ to: n.link });
+              }}
+              className={`block w-full border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-accent/40 ${n.is_read ? "" : "bg-primary/5"}`}
+            >
               <p className="text-sm font-medium">{n.title}</p>
               {n.body && <p className="text-xs text-muted-foreground line-clamp-2">{n.body}</p>}
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{new Date(n.created_at).toLocaleString()}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {new Date(n.created_at).toLocaleString()}
+              </p>
             </button>
           ))}
         </div>
         <div className="border-t border-border p-2">
-          <Button variant="ghost" className="w-full" onClick={() => navigate({ to: "/notifications" })}>See all</Button>
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => navigate({ to: "/notifications" })}
+          >
+            See all
+          </Button>
         </div>
       </PopoverContent>
     </Popover>

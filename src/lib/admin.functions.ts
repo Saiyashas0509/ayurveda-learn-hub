@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth-helpers";
 import { getSiteOrigin } from "@/lib/site-origin";
 import { pairLoginSessions, type JsonMetadata } from "@/lib/login-sessions";
+import { ORG_SCOPED_REPORTING_ROLES, PLATFORM_WIDE_REPORTING_ROLES } from "@/lib/org-scope-roles";
 
 // Every role an admin can directly assign — kept as one list so the "New
 // employee" form, CSV bulk import, and the role filter all agree on what's
@@ -414,7 +415,7 @@ export const publishAnnouncement = createServerFn({ method: "POST" })
 // assertAdmin's set (which gates mutations like creating/deleting users) —
 // auditors need full read visibility for their job but shouldn't get those
 // write powers, so this is intentionally a separate, read-only allowance.
-const OVERVIEW_PLATFORM_ROLES = new Set([...PLATFORM_WIDE_ROLES, "auditor"]);
+const OVERVIEW_PLATFORM_ROLES = PLATFORM_WIDE_REPORTING_ROLES;
 // Deliberately narrower than the general ORG_SCOPED_ROLES set (which also
 // includes doctor/faculty/trainer for the lower-stakes personal "My
 // Dashboard" aggregate counts) — this endpoint additionally exposes a raw
@@ -422,13 +423,9 @@ const OVERVIEW_PLATFORM_ROLES = new Set([...PLATFORM_WIDE_ROLES, "auditor"]);
 // restricted to the roles that actually have org-oversight nav access in
 // roleViews.ts's orgAdminGroup. doctor/faculty/trainer are self-signup roles
 // (see SELF_SIGNUP_ROLES) — including them here would let a self-registered
-// account read another organization's employee/audit data.
-const OVERVIEW_ORG_SCOPED_ROLES = new Set([
-  "org_admin",
-  "franchise_owner",
-  "regional_manager",
-  "center_head_doctor",
-]);
+// account read another organization's employee/audit data. Shared with (and
+// regression-tested alongside) reports.functions.ts via org-scope-roles.ts.
+const OVERVIEW_ORG_SCOPED_ROLES = ORG_SCOPED_REPORTING_ROLES;
 
 export const getAdminOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

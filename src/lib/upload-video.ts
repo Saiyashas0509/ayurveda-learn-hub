@@ -36,10 +36,20 @@ export function filenameFromVideoUrl(url: string): string {
 // hosting tends to enforce independent of PHP's own settings — a single
 // giant request for a 300MB+ video was intermittently failing partway
 // through with a generic network error on slower connections, even though
-// PHP's post_max_size/max_execution_time were raised. 5MB comfortably
-// finishes within seconds even on a slow link.
-const CHUNK_SIZE = 5 * 1024 * 1024;
-const MAX_CHUNK_RETRIES = 4;
+// PHP's post_max_size/max_execution_time were raised.
+//
+// 2MB (not the original 5MB): real-world testing against this specific host
+// showed throughput to it varies a lot run-to-run — anywhere from ~450KB/s
+// to ~3MB/s from the same network path — so a 5MB chunk could take anywhere
+// from 2 to 11+ seconds. A smaller chunk means less time exposed per request
+// for a connection hiccup (WiFi drop, laptop sleep, a bad patch of the
+// connection) to land in the middle of, and a cheaper retry when one does.
+const CHUNK_SIZE = 2 * 1024 * 1024;
+// Was 4 — bumped up since the failures this was tuned against are
+// transient connection drops, not a wrong request; giving up after only a
+// few seconds of backoff on a multi-minute upload wastes an upload that a
+// little more patience would have completed.
+const MAX_CHUNK_RETRIES = 8;
 
 type ChunkResponse = {
   done: boolean;
@@ -61,7 +71,7 @@ function postChunk(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", uploadUrl, true);
-    xhr.timeout = 120_000; // generous per-chunk cap; 5MB should never come close
+    xhr.timeout = 120_000; // generous per-chunk cap; a 2MB chunk should never come close
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onChunkProgress(e.loaded);
     };
@@ -94,7 +104,7 @@ function postChunk(
 }
 
 // Retries a single chunk with backoff before giving up — a transient drop on
-// one 5MB piece shouldn't force re-uploading everything already sent.
+// one small piece shouldn't force re-uploading everything already sent.
 async function postChunkWithRetry(
   uploadUrl: string,
   filename: string,
@@ -122,7 +132,10 @@ async function postChunkWithRetry(
       lastErr = err;
       onChunkProgress(0);
       if (attempt < MAX_CHUNK_RETRIES) {
-        await new Promise((r) => setTimeout(r, 1000 * attempt));
+        // Capped exponential-ish backoff — gives a slow/flaky connection real
+        // time to recover instead of hammering it again immediately, without
+        // ever waiting so long a single chunk stalls the whole upload.
+        await new Promise((r) => setTimeout(r, Math.min(1500 * attempt, 8000)));
       }
     }
   }
@@ -161,19 +174,30 @@ export async function uploadVideoToHostinger(
     const chunk = file.slice(start, end);
     const chunkSize = end - start;
 
-    const result = await postChunkWithRetry(
-      uploadUrl,
-      filename,
-      exp,
-      sig,
-      chunk,
-      i,
-      totalChunks,
-      (loaded) => {
-        if (!onProgress) return;
-        onProgress(Math.round(((uploadedBytes + loaded) / file.size) * 100));
-      },
-    );
+    let result: ChunkResponse;
+    try {
+      result = await postChunkWithRetry(
+        uploadUrl,
+        filename,
+        exp,
+        sig,
+        chunk,
+        i,
+        totalChunks,
+        (loaded) => {
+          if (!onProgress) return;
+          onProgress(Math.round(((uploadedBytes + loaded) / file.size) * 100));
+        },
+      );
+    } catch (err) {
+      const pct = Math.round((uploadedBytes / file.size) * 100);
+      const reason = err instanceof Error ? err.message : "unknown error";
+      throw new Error(
+        `Upload failed at ${pct}% after several retries (${reason}). This usually means the ` +
+          "connection is too unstable for the remaining transfer — try again on a more stable " +
+          "connection (wired/Wi-Fi rather than mobile data), or a smaller/shorter video file.",
+      );
+    }
     uploadedBytes += chunkSize;
     onProgress?.(Math.round((uploadedBytes / file.size) * 100));
 

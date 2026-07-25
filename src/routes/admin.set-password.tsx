@@ -69,7 +69,8 @@ function SetPasswordPage() {
           <div className="space-y-4 text-center">
             <h2 className="font-display text-2xl font-semibold">Link expired</h2>
             <p className="text-sm text-muted-foreground">
-              This password link is no longer valid. Ask your administrator to resend it, or request a new one from the sign-in page.
+              This password link is no longer valid. Ask your administrator to resend it, or request
+              a new one from the sign-in page.
             </p>
             <Link to="/admin/login" className="inline-block text-sm text-primary hover:underline">
               Go to admin sign in
@@ -111,7 +112,13 @@ function SetPasswordPage() {
               />
             </div>
             <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (<><ShieldCheck className="mr-2 h-4 w-4" /> Set password</>)}
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <ShieldCheck className="mr-2 h-4 w-4" /> Set password
+                </>
+              )}
             </Button>
           </form>
         )}

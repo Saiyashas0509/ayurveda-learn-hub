@@ -116,6 +116,23 @@ export const cancelClass = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertFaculty(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: cls } = await supabaseAdmin
+      .from("live_classes")
+      .select("host_id,google_event_id,created_via")
+      .eq("id", data.id)
+      .maybeSingle();
+
+    if (cls?.created_via === "google_meet" && cls.google_event_id) {
+      const { getValidGoogleAccessToken } = await import("@/lib/google-meet.functions");
+      const accessToken = await getValidGoogleAccessToken(supabaseAdmin, cls.host_id);
+      if (accessToken) {
+        await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${cls.google_event_id}`,
+          { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } },
+        ).catch((e) => console.error("[live-classes] Google event cleanup failed", e));
+      }
+    }
+
     const { error } = await supabaseAdmin.from("live_classes").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     await supabaseAdmin.from("audit_logs").insert({
@@ -179,10 +196,11 @@ export const scheduleClass = createServerFn({ method: "POST" })
       courseId: string;
       title: string;
       description?: string;
-      meetingUrl: string;
+      meetingUrl?: string;
       provider: "zoom" | "meet" | "teams" | "other";
       startsAt: string;
       endsAt?: string | null;
+      useGoogleMeet?: boolean;
     }) =>
       z
         .object({
@@ -190,24 +208,83 @@ export const scheduleClass = createServerFn({ method: "POST" })
           courseId: z.string().uuid(),
           title: z.string().trim().min(2).max(200),
           description: z.string().max(4000).optional(),
-          meetingUrl: z.string().url().max(1000),
+          meetingUrl: z.string().url().max(1000).optional(),
           provider: z.enum(["zoom", "meet", "teams", "other"]),
           startsAt: z.string(),
           endsAt: z.string().nullable().optional(),
+          useGoogleMeet: z.boolean().optional(),
+        })
+        .refine((v) => v.useGoogleMeet || !!v.meetingUrl, {
+          message: "meetingUrl is required unless useGoogleMeet is set",
+          path: ["meetingUrl"],
         })
         .parse(d),
   )
   .handler(async ({ data, context }) => {
     await assertFaculty(context.userId);
+
+    let meetingUrl = data.meetingUrl ?? "";
+    let googleEventId: string | null = null;
+    let createdVia = "manual";
+
+    if (data.useGoogleMeet) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { getValidGoogleAccessToken } = await import("@/lib/google-meet.functions");
+      const accessToken = await getValidGoogleAccessToken(supabaseAdmin, context.userId);
+      if (!accessToken) {
+        throw new Error("Connect your Google account first (Live Classes → Connect Google).");
+      }
+      const endsAt =
+        data.endsAt ?? new Date(new Date(data.startsAt).getTime() + 60 * 60 * 1000).toISOString();
+      const eventRes = await fetch(
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            summary: data.title,
+            description: data.description ?? "",
+            start: { dateTime: data.startsAt },
+            end: { dateTime: endsAt },
+            conferenceData: {
+              createRequest: {
+                requestId: `${context.userId}-${Date.now()}`,
+                conferenceSolutionKey: { type: "hangoutsMeet" },
+              },
+            },
+          }),
+        },
+      );
+      if (!eventRes.ok) {
+        const body = await eventRes.text().catch(() => "");
+        console.error(
+          "[live-classes] Google Calendar event creation failed:",
+          eventRes.status,
+          body,
+        );
+        throw new Error("Couldn't create the Google Meet link. Please try again.");
+      }
+      const event = (await eventRes.json()) as { id: string; hangoutLink?: string };
+      if (!event.hangoutLink) throw new Error("Google didn't return a Meet link for this event.");
+      meetingUrl = event.hangoutLink;
+      googleEventId = event.id;
+      createdVia = "google_meet";
+    }
+
     const payload = {
       course_id: data.courseId,
       title: data.title,
       description: data.description ?? null,
-      meeting_url: data.meetingUrl,
-      provider: data.provider,
+      meeting_url: meetingUrl,
+      provider: data.useGoogleMeet ? "meet" : data.provider,
       starts_at: data.startsAt,
       ends_at: data.endsAt ?? null,
       host_id: context.userId,
+      google_event_id: googleEventId,
+      created_via: createdVia,
     };
     if (data.id) {
       const { error } = await context.supabase

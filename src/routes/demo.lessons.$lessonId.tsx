@@ -14,7 +14,10 @@ function DemoLessonPage() {
   const { lessonId } = Route.useParams();
   const fn = useServerFn(getDemoLesson);
   const { data } = useSuspenseQuery(
-    queryOptions({ queryKey: ["demo-lesson", lessonId], queryFn: () => fn({ data: { lessonId } }) }),
+    queryOptions({
+      queryKey: ["demo-lesson", lessonId],
+      queryFn: () => fn({ data: { lessonId } }),
+    }),
   );
 
   if (!data.lesson) {
@@ -27,7 +30,11 @@ function DemoLessonPage() {
     <div className="space-y-6">
       <div>
         {course?.slug && (
-          <Link to="/demo/courses/$slug" params={{ slug: course.slug }} className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground">
+          <Link
+            to="/demo/courses/$slug"
+            params={{ slug: course.slug }}
+            className="text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground"
+          >
             ← {course.title ?? "Course"}
           </Link>
         )}
@@ -53,20 +60,35 @@ function DemoLessonPage() {
           <TabsTrigger value="transcript">Transcript</TabsTrigger>
           <TabsTrigger value="resources">Resources</TabsTrigger>
         </TabsList>
-        <TabsContent value="notes" className="rounded-xl border border-border bg-card p-6 shadow-card">
+        <TabsContent
+          value="notes"
+          className="rounded-xl border border-border bg-card p-6 shadow-card"
+        >
           <pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-foreground">
             {l.key_notes || "No notes available for this lesson."}
           </pre>
         </TabsContent>
-        <TabsContent value="transcript" className="rounded-xl border border-border bg-card p-6 shadow-card">
+        <TabsContent
+          value="transcript"
+          className="rounded-xl border border-border bg-card p-6 shadow-card"
+        >
           <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
             {l.transcript || "No transcript available."}
           </p>
         </TabsContent>
-        <TabsContent value="resources" className="rounded-xl border border-border bg-card p-6 shadow-card">
+        <TabsContent
+          value="resources"
+          className="rounded-xl border border-border bg-card p-6 shadow-card"
+        >
           {l.pdf_url ? (
-            <a href={l.pdf_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border border-border p-3 hover:bg-accent">
-              <FileText className="h-4 w-4" /> Reading material (PDF) <Download className="ml-auto h-4 w-4" />
+            <a
+              href={l.pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-md border border-border p-3 hover:bg-accent"
+            >
+              <FileText className="h-4 w-4" /> Reading material (PDF){" "}
+              <Download className="ml-auto h-4 w-4" />
             </a>
           ) : (
             <p className="text-sm text-muted-foreground">No downloadable resources.</p>
@@ -79,7 +101,8 @@ function DemoLessonPage() {
           <p className="text-xs uppercase tracking-widest text-gold-foreground/80">Assessment</p>
           <h3 className="mt-1 font-display text-xl font-semibold">{data.quiz.title}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Passing score {data.quiz.pass_percent}% · Time limit {Math.round((data.quiz.time_limit_seconds ?? 0) / 60)} min
+            Passing score {data.quiz.pass_percent}% · Time limit{" "}
+            {Math.round((data.quiz.time_limit_seconds ?? 0) / 60)} min
           </p>
           <Link
             to="/demo/quiz/$quizId"

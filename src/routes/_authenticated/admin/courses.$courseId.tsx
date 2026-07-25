@@ -1,6 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
+import {
+  useSuspenseQuery,
+  useMutation,
+  useQueryClient,
+  queryOptions,
+  useQuery,
+} from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
   DndContext,
@@ -20,6 +26,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   getCourseForEdit,
   upsertCourse,
+  listOrganizationsForPicker,
   createModule,
   updateModule,
   deleteModule,
@@ -32,6 +39,7 @@ import {
   unpublishCourse,
   createQuizInline,
   attachQuizToLesson,
+  generateQuizNow,
   upsertAssignment,
   deleteAssignment,
 } from "@/lib/course-builder.functions";
@@ -64,6 +72,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   GripVertical,
   Plus,
@@ -85,6 +94,24 @@ export const Route = createFileRoute("/_authenticated/admin/courses/$courseId")(
 });
 
 type Resource = { id: string; name: string; url: string; kind: string; size?: number };
+
+const APP_ROLE_OPTIONS = [
+  "super_admin",
+  "hr_admin",
+  "regional_manager",
+  "center_head_doctor",
+  "front_office",
+  "therapist",
+  "trainer",
+  "auditor",
+  "student",
+  "doctor",
+  "franchise_owner",
+  "corporate_employee",
+  "hospital_staff",
+  "faculty",
+  "org_admin",
+];
 
 function CourseBuilder() {
   const { courseId } = Route.useParams();
@@ -150,18 +177,32 @@ function CourseHeader({
     version: number;
     last_published_at: string | null;
     duration_minutes: number | null;
+    organization_id: string | null;
+    target_roles: string[] | null;
+    renewal_period_months: number | null;
   };
   onSaved: () => void;
 }) {
   const save = useServerFn(upsertCourse);
   const pub = useServerFn(publishCourse);
   const unpub = useServerFn(unpublishCourse);
+  const fetchOrgs = useServerFn(listOrganizationsForPicker);
   const [title, setTitle] = useState(course.title);
   const [desc, setDesc] = useState(course.description ?? "");
   const [preview, setPreview] = useState(course.preview_allowed);
   const [coverUrl, setCoverUrl] = useState(course.cover_url ?? "");
   const [coverProgress, setCoverProgress] = useState<number | null>(null);
   const [coverDragOver, setCoverDragOver] = useState(false);
+  const [orgId, setOrgId] = useState<string | null>(course.organization_id);
+  const [targetRoles, setTargetRoles] = useState<string[]>(course.target_roles ?? []);
+  const [renewalMonths, setRenewalMonths] = useState(
+    course.renewal_period_months != null ? String(course.renewal_period_months) : "",
+  );
+
+  const { data: orgs } = useQuery({
+    queryKey: ["orgs-picker"],
+    queryFn: () => fetchOrgs(),
+  });
 
   const saveMut = useMutation({
     mutationFn: () =>
@@ -172,6 +213,9 @@ function CourseHeader({
           description: desc,
           preview_allowed: preview,
           cover_url: coverUrl || null,
+          organization_id: orgId,
+          target_roles: targetRoles.length ? targetRoles : null,
+          renewal_period_months: renewalMonths ? Number(renewalMonths) : null,
         },
       }),
     onSuccess: () => {
@@ -284,6 +328,62 @@ function CourseHeader({
             <Button variant="outline" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
               <Save className="mr-2 h-4 w-4" /> Save
             </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/20 p-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Visibility</Label>
+              <Select
+                value={orgId ?? "shared"}
+                onValueChange={(v) => setOrgId(v === "shared" ? null : v)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="shared">Shared — all organizations</SelectItem>
+                  {(orgs ?? []).map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      Private to: {o.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                Renewal period (compliance expiry)
+              </Label>
+              <Input
+                className="mt-1"
+                type="number"
+                min={1}
+                max={120}
+                placeholder="Never expires"
+                value={renewalMonths}
+                onChange={(e) => setRenewalMonths(e.target.value)}
+              />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs text-muted-foreground">
+                Restrict to roles (leave empty = everyone)
+              </Label>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5">
+                {APP_ROLE_OPTIONS.map((role) => (
+                  <label key={role} className="flex items-center gap-1.5 text-xs">
+                    <Checkbox
+                      checked={targetRoles.includes(role)}
+                      onCheckedChange={(checked) =>
+                        setTargetRoles((prev) =>
+                          checked ? [...prev, role] : prev.filter((r) => r !== role),
+                        )
+                      }
+                    />
+                    {role.replace(/_/g, " ")}
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -630,6 +730,8 @@ function LessonEditor({
   const createQz = useServerFn(createQuizInline);
   const attachQz = useServerFn(attachQuizToLesson);
   const transcribeVideo = useServerFn(transcribeLessonVideo);
+  const generateQz = useServerFn(generateQuizNow);
+  const [generatingQuiz, setGeneratingQuiz] = useState(false);
 
   const [title, setTitle] = useState(lesson.title);
   const [desc, setDesc] = useState(lesson.description ?? "");
@@ -743,6 +845,11 @@ function LessonEditor({
     setTranscribing(true);
     try {
       const res = await transcribeVideo({ data: { lessonId: lesson.id } });
+      // Defensive: a malformed/empty server response should surface as a
+      // clear error, not crash with "Cannot read properties of undefined."
+      if (!res?.transcript) {
+        throw new Error("Transcription didn't return any text. Please try again.");
+      }
       setTranscript(res.transcript);
       toast.success("Transcript generated — review it below, then Save.");
     } catch (e) {
@@ -974,13 +1081,36 @@ function LessonEditor({
               </div>
             ) : (
               <div className="mt-2 space-y-2">
+                {lesson.video_url && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={generatingQuiz}
+                    onClick={() => {
+                      setGeneratingQuiz(true);
+                      generateQz({ data: { lessonId: lesson.id } })
+                        .then(() => {
+                          toast.success("Quiz generated from this lesson's content");
+                          onChanged();
+                        })
+                        .catch((e) =>
+                          toast.error(e instanceof Error ? e.message : "Couldn't generate a quiz"),
+                        )
+                        .finally(() => setGeneratingQuiz(false));
+                    }}
+                  >
+                    <Wand2 className="mr-1.5 h-3.5 w-3.5" />
+                    {generatingQuiz ? "Generating…" : "Generate quiz with AI"}
+                  </Button>
+                )}
                 <Select
                   onValueChange={(id) =>
                     attachQz({ data: { quizId: id, lessonId: lesson.id } }).then(onChanged)
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Attach existing quiz…" />
+                    <SelectValue placeholder="Or attach an existing quiz…" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableQuizzes.map((q) => (

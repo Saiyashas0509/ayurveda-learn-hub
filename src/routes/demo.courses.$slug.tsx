@@ -21,12 +21,15 @@ function DemoCoursePage() {
     return (
       <div className="rounded-xl border border-border bg-card p-8 text-center">
         <p className="text-sm text-muted-foreground">Course not found or not published.</p>
-        <Link to="/demo/catalog" className="mt-4 inline-block text-sm text-primary hover:underline">← Back to catalog</Link>
+        <Link to="/demo/catalog" className="mt-4 inline-block text-sm text-primary hover:underline">
+          ← Back to catalog
+        </Link>
       </div>
     );
   }
 
-  const catName = (data.course as { course_categories?: { name?: string } }).course_categories?.name;
+  const catName = (data.course as { course_categories?: { name?: string } }).course_categories
+    ?.name;
 
   return (
     <div className="space-y-8">
@@ -35,7 +38,9 @@ function DemoCoursePage() {
         <h1 className="mt-2 font-display text-3xl font-semibold">{data.course.title}</h1>
         <p className="mt-3 max-w-2xl text-primary-foreground/80">{data.course.description}</p>
         <div className="mt-6 flex flex-wrap items-center gap-4 text-sm">
-          <span className="rounded-full bg-primary-foreground/10 px-3 py-1">{data.lessons.length} lessons</span>
+          <span className="rounded-full bg-primary-foreground/10 px-3 py-1">
+            {data.lessons.length} lessons
+          </span>
           <span className="rounded-full bg-primary-foreground/10 px-3 py-1">
             <Clock className="mr-1 inline h-3 w-3" /> {data.course.duration_minutes ?? 0} min
           </span>
@@ -59,7 +64,9 @@ function DemoCoursePage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{l.title}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{Math.round((l.duration_seconds ?? 0) / 60)} min</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {Math.round((l.duration_seconds ?? 0) / 60)} min
+                  </p>
                 </div>
                 <Circle className="h-5 w-5 text-muted-foreground" />
                 <PlayCircle className="h-5 w-5 text-primary" />

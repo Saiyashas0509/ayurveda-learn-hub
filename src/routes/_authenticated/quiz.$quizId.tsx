@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { startQuizAttempt, submitQuizAttempt } from "@/lib/learning.functions";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Loader2, Clock, CheckCircle2, XCircle, Award } from "lucide-react";
+import { Loader2, Clock, CheckCircle2, XCircle, Award, AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/quiz/$quizId")({
   component: QuizPage,
@@ -31,7 +31,14 @@ function QuizPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [current, setCurrent] = useState(0);
   const [remaining, setRemaining] = useState(0);
-  const [result, setResult] = useState<{ score: number; passed: boolean; certCode: string | null } | null>(null);
+  const [result, setResult] = useState<{
+    score: number;
+    passed: boolean;
+    certCode: string | null;
+    attemptNumber: number;
+  } | null>(null);
+  const [attemptNumber, setAttemptNumber] = useState(1);
+  const [startError, setStartError] = useState<string | null>(null);
 
   useEffect(() => {
     start({ data: { quizId } })
@@ -39,8 +46,13 @@ function QuizPage() {
         setAttemptId(r.attemptId);
         setQuestions(r.questions as Question[]);
         setRemaining(r.quiz.time_limit_seconds ?? 600);
+        setAttemptNumber(r.attemptNumber);
       })
-      .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to start"))
+      .catch((e) => {
+        const message = e instanceof Error ? e.message : "Failed to start";
+        setStartError(message);
+        toast.error(message);
+      })
       .finally(() => setLoading(false));
   }, [start, quizId]);
 
@@ -76,10 +88,30 @@ function QuizPage() {
     );
   }
 
+  // Without this, a failed start (video not fully watched yet, quiz
+  // deleted, network error, etc.) left `questions` empty and fell through
+  // to the question-rendering code below, which crashed on
+  // `questions[0].prompt` being undefined instead of showing anything useful.
+  if (startError || questions.length === 0) {
+    return (
+      <div className="mx-auto max-w-md space-y-4 py-12 text-center">
+        <AlertTriangle className="mx-auto h-10 w-10 text-destructive" />
+        <p className="text-sm text-muted-foreground">
+          {startError ?? "This quiz couldn't be loaded."}
+        </p>
+        <Button variant="outline" onClick={() => navigate({ to: "/dashboard" })}>
+          Back to dashboard
+        </Button>
+      </div>
+    );
+  }
+
   if (result) {
     return (
       <div className="mx-auto max-w-lg space-y-6 py-8 text-center">
-        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${result.passed ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
+        <div
+          className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${result.passed ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}
+        >
           {result.passed ? <CheckCircle2 className="h-8 w-8" /> : <XCircle className="h-8 w-8" />}
         </div>
         <h1 className="font-display text-3xl font-semibold">
@@ -87,6 +119,9 @@ function QuizPage() {
         </h1>
         <p className="text-muted-foreground">
           You scored <span className="text-3xl font-semibold text-foreground">{result.score}%</span>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Attempt #{result.attemptNumber} · Completed {new Date().toLocaleString()}
         </p>
         {result.certCode && (
           <div className="rounded-xl border border-gold/40 bg-gold/10 p-6">
@@ -96,7 +131,9 @@ function QuizPage() {
           </div>
         )}
         <div className="flex justify-center gap-3">
-          <Button variant="outline" onClick={() => navigate({ to: "/catalog" })}>Back to catalog</Button>
+          <Button variant="outline" onClick={() => navigate({ to: "/catalog" })}>
+            Back to catalog
+          </Button>
           <Button onClick={() => navigate({ to: "/certificates" })}>My certificates</Button>
         </div>
       </div>
@@ -111,9 +148,12 @@ function QuizPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Question <span className="font-medium text-foreground">{current + 1}</span> of {questions.length}
+          Question <span className="font-medium text-foreground">{current + 1}</span> of{" "}
+          {questions.length} <span className="text-xs">(Attempt #{attemptNumber})</span>
         </p>
-        <div className={`flex items-center gap-2 rounded-md px-3 py-1 text-sm ${remaining < 60 ? "bg-destructive/10 text-destructive" : "bg-muted"}`}>
+        <div
+          className={`flex items-center gap-2 rounded-md px-3 py-1 text-sm ${remaining < 60 ? "bg-destructive/10 text-destructive" : "bg-muted"}`}
+        >
           <Clock className="h-3.5 w-3.5" />
           {mins}:{secs}
         </div>
@@ -134,7 +174,9 @@ function QuizPage() {
                   selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/50"
                 }`}
               >
-                <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-primary bg-primary" : "border-border"}`}>
+                <span
+                  className={`flex h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-primary bg-primary" : "border-border"}`}
+                >
                   {selected && <span className="h-2 w-2 rounded-full bg-primary-foreground" />}
                 </span>
                 <span className="text-sm">{o.text}</span>

@@ -16,8 +16,18 @@ async function publicClient() {
 export const getDemoDashboard = createServerFn({ method: "GET" }).handler(async () => {
   const supabase = await publicClient();
   const [courses, announcements, categories] = await Promise.all([
-    supabase.from("courses").select("id,title,slug,description,cover_url,duration_minutes,category_id,course_categories(name)").eq("is_published", true).limit(6),
-    supabase.from("announcements").select("id,title,body,published_at").order("published_at", { ascending: false }).limit(5),
+    supabase
+      .from("courses")
+      .select(
+        "id,title,slug,description,cover_url,duration_minutes,category_id,course_categories(name)",
+      )
+      .eq("is_published", true)
+      .limit(6),
+    supabase
+      .from("announcements")
+      .select("id,title,body,published_at")
+      .order("published_at", { ascending: false })
+      .limit(5),
     supabase.from("course_categories").select("id,name").order("sort_order"),
   ]);
   return {
@@ -31,13 +41,19 @@ export const getDemoCatalog = createServerFn({ method: "GET" }).handler(async ()
   const supabase = await publicClient();
   const [cats, courses] = await Promise.all([
     supabase.from("course_categories").select("id,name,slug").order("sort_order"),
-    supabase.from("courses").select("id,title,slug,description,cover_url,duration_minutes,category_id").eq("is_published", true).order("created_at", { ascending: false }),
+    supabase
+      .from("courses")
+      .select("id,title,slug,description,cover_url,duration_minutes,category_id")
+      .eq("is_published", true)
+      .order("created_at", { ascending: false }),
   ]);
   return { categories: cats.data ?? [], courses: courses.data ?? [] };
 });
 
 export const getDemoCourse = createServerFn({ method: "GET" })
-  .inputValidator((data: { slug: string }) => z.object({ slug: z.string().min(1).max(120) }).parse(data))
+  .inputValidator((data: { slug: string }) =>
+    z.object({ slug: z.string().min(1).max(120) }).parse(data),
+  )
   .handler(async ({ data }) => {
     const supabase = await publicClient();
     const { data: course } = await supabase
@@ -56,12 +72,16 @@ export const getDemoCourse = createServerFn({ method: "GET" })
   });
 
 export const getDemoLesson = createServerFn({ method: "GET" })
-  .inputValidator((data: { lessonId: string }) => z.object({ lessonId: z.string().uuid() }).parse(data))
+  .inputValidator((data: { lessonId: string }) =>
+    z.object({ lessonId: z.string().uuid() }).parse(data),
+  )
   .handler(async ({ data }) => {
     const supabase = await publicClient();
     const { data: lesson } = await supabase
       .from("lessons")
-      .select("id,title,video_url,pdf_url,key_notes,transcript,duration_seconds,course_id,courses(id,title,slug)")
+      .select(
+        "id,title,video_url,pdf_url,key_notes,transcript,duration_seconds,course_id,courses(id,title,slug)",
+      )
       .eq("id", data.lessonId)
       .maybeSingle();
     if (!lesson) return { lesson: null, quiz: null };

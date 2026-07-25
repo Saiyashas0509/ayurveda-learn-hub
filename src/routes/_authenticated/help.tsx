@@ -129,6 +129,9 @@ function EmployeeGuide() {
           <p>
             <strong>Live Classes</strong> lists any scheduled sessions for your courses — join from
             there when one starts. <strong>Calendar</strong> shows upcoming sessions and deadlines.
+            The actual video call happens on an external provider (Zoom, Google Meet, or Teams,
+            depending what the trainer used) — this page just gives you the link and records when
+            you clicked it, it doesn't host the call itself.
           </p>
           <p>
             Each course also has a discussion thread for questions, reachable from the course page.
@@ -250,7 +253,10 @@ function AdminGuide() {
         <AccordionContent className="space-y-2 text-sm text-muted-foreground">
           <p>
             Post org-wide updates from <strong>Announcements</strong> — they show up as a
-            notification for everyone. Schedule a live session from <strong>Schedule Class</strong>.
+            notification for everyone. Schedule a live session from <strong>Schedule Class</strong>{" "}
+            — either paste a meeting link you created elsewhere, or connect your Google account once
+            to auto-generate a Meet link. Attendance is recorded as "clicked join," not confirmed
+            in-call presence, since the call itself runs on the external provider.
           </p>
         </AccordionContent>
       </AccordionItem>

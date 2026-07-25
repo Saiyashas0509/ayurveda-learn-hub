@@ -1,6 +1,7 @@
-// Ayurveda-only AI chat assistant. Uses OpenAI's chat completions API — the
-// same provider as video transcription (transcription.functions.ts), so one
-// API key covers both instead of asking for two separate provider accounts.
+// Ayurveda-only AI chat assistant. Uses Groq's free-tier chat completions
+// API (OpenAI-compatible endpoint, Llama 3.3 70B) — Groq also serves a free
+// Whisper endpoint (see transcription.functions.ts), so one GROQ_API_KEY
+// covers both instead of two separate paid provider accounts.
 // Stateless: conversation history lives in the browser only, nothing is
 // persisted server-side (no new table needed for this feature).
 import { createServerFn } from "@tanstack/react-start";
@@ -37,12 +38,11 @@ export const askAyurvedaAssistant = createServerFn({ method: "POST" })
         .parse(data),
   )
   .handler(async ({ data }) => {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return {
         reply: null,
-        error:
-          "The Ayurveda Assistant isn't set up yet — ask your admin to add the OpenAI API key.",
+        error: "The Ayurveda Assistant isn't set up yet — ask your admin to add the Groq API key.",
       };
     }
 
@@ -52,14 +52,14 @@ export const askAyurvedaAssistant = createServerFn({ method: "POST" })
       { role: "user", content: data.message },
     ];
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "llama-3.3-70b-versatile",
         messages,
         temperature: 0.4,
         max_tokens: 500,
@@ -68,7 +68,7 @@ export const askAyurvedaAssistant = createServerFn({ method: "POST" })
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error("[ai-assistant] OpenAI error:", res.status, body);
+      console.error("[ai-assistant] Groq error:", res.status, body);
       return {
         reply: null,
         error: "The assistant is temporarily unavailable. Please try again shortly.",

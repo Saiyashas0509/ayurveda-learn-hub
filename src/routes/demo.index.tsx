@@ -11,19 +11,26 @@ export const Route = createFileRoute("/demo/")({
 
 function DemoDashboard() {
   const fn = useServerFn(getDemoDashboard);
-  const { data } = useSuspenseQuery(queryOptions({ queryKey: ["demo-dashboard"], queryFn: () => fn() }));
+  const { data } = useSuspenseQuery(
+    queryOptions({ queryKey: ["demo-dashboard"], queryFn: () => fn() }),
+  );
 
   return (
     <div className="space-y-8">
       <div className="bg-hero shadow-elevated relative overflow-hidden rounded-2xl p-8 text-primary-foreground">
         <div className="relative z-10">
           <p className="text-xs uppercase tracking-[0.2em] text-gold">Preview mode</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold sm:text-4xl">Welcome to Travancore Ayurveda LMS</h1>
+          <h1 className="mt-2 font-display text-3xl font-semibold sm:text-4xl">
+            Welcome to Travancore Ayurveda LMS
+          </h1>
           <p className="mt-2 max-w-xl text-primary-foreground/80">
             A sample of the learner experience. Progress and certificates require sign-in.
           </p>
           <div className="mt-6">
-            <Link to="/demo/catalog" className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-gold-foreground shadow-elevated transition-transform hover:-translate-y-0.5">
+            <Link
+              to="/demo/catalog"
+              className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-gold-foreground shadow-elevated transition-transform hover:-translate-y-0.5"
+            >
               Browse Catalog →
             </Link>
           </div>
@@ -34,7 +41,12 @@ function DemoDashboard() {
         <StatCard icon={CheckCircle2} label="Completed" value={0} tone="success" />
         <StatCard icon={Clock} label="In progress" value={0} tone="primary" />
         <StatCard icon={Award} label="Certificates" value={0} tone="gold" />
-        <StatCard icon={BookOpen} label="Available courses" value={data.courses.length} tone="muted" />
+        <StatCard
+          icon={BookOpen}
+          label="Available courses"
+          value={data.courses.length}
+          tone="muted"
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -47,7 +59,8 @@ function DemoDashboard() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {data.courses.map((c) => {
-              const catName = (c as { course_categories?: { name?: string } }).course_categories?.name;
+              const catName = (c as { course_categories?: { name?: string } }).course_categories
+                ?.name;
               return (
                 <Link
                   key={c.id}
@@ -55,8 +68,12 @@ function DemoDashboard() {
                   params={{ slug: c.slug }}
                   className="group rounded-xl border border-border bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elevated"
                 >
-                  <p className="text-xs font-medium uppercase tracking-widest text-gold">{catName ?? "Course"}</p>
-                  <h3 className="mt-2 font-display text-lg font-semibold group-hover:text-primary">{c.title}</h3>
+                  <p className="text-xs font-medium uppercase tracking-widest text-gold">
+                    {catName ?? "Course"}
+                  </p>
+                  <h3 className="mt-2 font-display text-lg font-semibold group-hover:text-primary">
+                    {c.title}
+                  </h3>
                   <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
                     <BookOpen className="h-3.5 w-3.5" /> Ayurvedic training module
                   </div>
@@ -88,7 +105,9 @@ function DemoDashboard() {
               </div>
             ))}
             {data.announcements.length === 0 && (
-              <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No announcements.</p>
+              <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                No announcements.
+              </p>
             )}
           </div>
         </div>
@@ -97,7 +116,17 @@ function DemoDashboard() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, tone }: { icon: React.ElementType; label: string; value: number; tone: "success" | "primary" | "gold" | "muted"; }) {
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number;
+  tone: "success" | "primary" | "gold" | "muted";
+}) {
   const toneMap = {
     success: "bg-success/10 text-success",
     primary: "bg-primary/10 text-primary",

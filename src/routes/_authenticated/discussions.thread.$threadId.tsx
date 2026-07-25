@@ -2,14 +2,24 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { getThread, createReply, toggleLike, pinThread, deleteThread } from "@/lib/discussions.functions";
+import {
+  getThread,
+  createReply,
+  toggleLike,
+  pinThread,
+  deleteThread,
+} from "@/lib/discussions.functions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Heart, Pin, ShieldCheck, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/discussions/thread/$threadId")({
   component: Page,
-  errorComponent: ({ error }) => <div role="alert" className="p-8 text-sm text-destructive">{error.message}</div>,
+  errorComponent: ({ error }) => (
+    <div role="alert" className="p-8 text-sm text-destructive">
+      {error.message}
+    </div>
+  ),
   notFoundComponent: () => <div className="p-8">Thread not found.</div>,
 });
 
@@ -30,7 +40,11 @@ function Page() {
   const [parentId, setParentId] = useState<string | null>(null);
   const reply = useMutation({
     mutationFn: () => replyFn({ data: { threadId, body, parentReplyId: parentId } }),
-    onSuccess: () => { setBody(""); setParentId(null); refetch(); },
+    onSuccess: () => {
+      setBody("");
+      setParentId(null);
+      refetch();
+    },
   });
   const like = useMutation({
     mutationFn: (v: { targetType: "thread" | "reply"; targetId: string }) => likeFn({ data: v }),
@@ -46,27 +60,49 @@ function Page() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="font-display text-2xl font-semibold">{thread.title}</h1>
-            <p className="mt-1 text-xs text-muted-foreground">by {thread.author_name} · {new Date(thread.created_at).toLocaleString()}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              by {thread.author_name} · {new Date(thread.created_at).toLocaleString()}
+            </p>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => pinFn({ data: { id: thread.id, pinned: !thread.is_pinned } }).then(() => refetch())}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                pinFn({ data: { id: thread.id, pinned: !thread.is_pinned } }).then(() => refetch())
+              }
+            >
               <Pin className="h-4 w-4" /> {thread.is_pinned ? "Unpin" : "Pin"}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => { if (confirm("Delete thread?")) delFn({ data: { id: thread.id } }).then(() => history.back()); }}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (confirm("Delete thread?"))
+                  delFn({ data: { id: thread.id } }).then(() => history.back());
+              }}
+            >
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </div>
         <p className="mt-4 whitespace-pre-wrap text-sm">{thread.body}</p>
         <div className="mt-4">
-          <Button size="sm" variant={thread.liked ? "default" : "outline"} onClick={() => like.mutate({ targetType: "thread", targetId: thread.id })}>
-            <Heart className={`h-4 w-4 ${thread.liked ? "fill-current" : ""}`} /> {thread.like_count}
+          <Button
+            size="sm"
+            variant={thread.liked ? "default" : "outline"}
+            onClick={() => like.mutate({ targetType: "thread", targetId: thread.id })}
+          >
+            <Heart className={`h-4 w-4 ${thread.liked ? "fill-current" : ""}`} />{" "}
+            {thread.like_count}
           </Button>
         </div>
       </div>
 
       <div className="space-y-3">
-        {replies.length === 0 && <p className="text-sm text-muted-foreground">Be the first to reply.</p>}
+        {replies.length === 0 && (
+          <p className="text-sm text-muted-foreground">Be the first to reply.</p>
+        )}
         {replies.map((r) => {
           const indent = r.parent_reply_id ? "ml-8" : "";
           return (
@@ -79,12 +115,23 @@ function Page() {
                       <ShieldCheck className="h-3 w-3" /> Faculty
                     </span>
                   )}
-                  <span className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(r.created_at).toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex gap-2">
-                  <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setParentId(r.id)}>Reply</button>
-                  <button className="inline-flex items-center gap-1 text-xs" onClick={() => like.mutate({ targetType: "reply", targetId: r.id })}>
-                    <Heart className={`h-3 w-3 ${r.liked ? "fill-current text-primary" : ""}`} /> {r.like_count}
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setParentId(r.id)}
+                  >
+                    Reply
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-1 text-xs"
+                    onClick={() => like.mutate({ targetType: "reply", targetId: r.id })}
+                  >
+                    <Heart className={`h-3 w-3 ${r.liked ? "fill-current text-primary" : ""}`} />{" "}
+                    {r.like_count}
                   </button>
                 </div>
               </div>
@@ -97,12 +144,22 @@ function Page() {
       <div className="rounded-xl border border-border bg-card p-4">
         {parentId && (
           <p className="mb-2 text-xs text-muted-foreground">
-            Replying to a comment · <button className="underline" onClick={() => setParentId(null)}>cancel</button>
+            Replying to a comment ·{" "}
+            <button className="underline" onClick={() => setParentId(null)}>
+              cancel
+            </button>
           </p>
         )}
-        <Textarea placeholder="Write a reply…" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
+        <Textarea
+          placeholder="Write a reply…"
+          rows={4}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+        />
         <div className="mt-2 flex justify-end">
-          <Button onClick={() => reply.mutate()} disabled={!body.trim() || reply.isPending}>Post reply</Button>
+          <Button onClick={() => reply.mutate()} disabled={!body.trim() || reply.isPending}>
+            Post reply
+          </Button>
         </div>
       </div>
     </div>

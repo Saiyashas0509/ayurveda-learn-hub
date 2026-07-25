@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       const { data: emp } = await supabase
         .from("employees")
         .select(
-          "full_name,email,designation,primary_role,centers(name),organizations(name,org_type)",
+          "full_name,email,designation,primary_role,centers(name),organizations(name,org_type,logo_url)",
         )
         .eq("id", u.user.id)
         .maybeSingle();
@@ -106,8 +106,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     .join("")
     .toUpperCase();
   const roleLabel = ROLE_LABELS[primaryRole];
-  const orgName = (me?.employee as { organizations?: { name?: string } } | null | undefined)
-    ?.organizations?.name;
+  const org = (
+    me?.employee as
+      { organizations?: { name?: string; logo_url?: string | null } } | null | undefined
+  )?.organizations;
+  const orgName = org?.name;
+  const orgLogoUrl = org?.logo_url;
 
   return (
     <div className="min-h-screen bg-background">
@@ -120,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center gap-3 border-b border-sidebar-border/60 px-6 py-4">
-            <BrandLogo onDark className="h-16" />
+            <BrandLogo onDark className="h-16" logoUrl={orgLogoUrl} />
           </div>
 
           <nav className="flex-1 overflow-y-auto px-3 py-4">

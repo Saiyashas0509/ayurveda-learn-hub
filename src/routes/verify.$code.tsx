@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { verifyCertificate } from "@/lib/learning.functions";
-import { ShieldCheck, XCircle, Loader2 } from "lucide-react";
+import { ShieldCheck, XCircle, Loader2, QrCode } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 
 export const Route = createFileRoute("/verify/$code")({
@@ -33,12 +33,16 @@ function VerifyPage() {
         <div className="bg-hero p-6 text-primary-foreground">
           <div className="flex items-center justify-between gap-3">
             <BrandLogo onDark className="h-16" />
-            <p className="text-xs uppercase tracking-widest text-primary-foreground/70">Certificate Verification</p>
+            <p className="text-xs uppercase tracking-widest text-primary-foreground/70">
+              Certificate Verification
+            </p>
           </div>
         </div>
         <div className="p-6">
           {isLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
           ) : cert ? (
             <div>
               <div className="flex items-center gap-2 text-success">
@@ -60,10 +64,17 @@ function VerifyPage() {
                 <p className="font-medium">Certificate not found</p>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                No certificate matches the code <code className="rounded bg-muted px-1.5 py-0.5">{code}</code>.
+                No certificate matches the code{" "}
+                <code className="rounded bg-muted px-1.5 py-0.5">{code}</code>.
               </p>
             </div>
           )}
+          <Link
+            to="/scan"
+            className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-primary hover:underline"
+          >
+            <QrCode className="h-3.5 w-3.5" /> Scan another certificate
+          </Link>
         </div>
       </div>
     </div>

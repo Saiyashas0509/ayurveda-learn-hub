@@ -38,10 +38,52 @@ export const listOrganizations = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("organizations")
-      .select("id,name,slug,org_type,contact_email,is_active,created_at")
+      .select("id,name,slug,org_type,contact_email,is_active,created_at,logo_url")
       .order("name");
     if (error) throw new Error(error.message);
     return data ?? [];
+  });
+
+export const getOrgLogoUploadUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { orgId: string; ext: string }) =>
+    z
+      .object({
+        orgId: z.string().uuid(),
+        // SVG deliberately excluded — it can embed <script>, and this file
+        // ends up served from a public bucket and rendered directly as an
+        // <img src>, which is enough for a stored-XSS path if it ever gets
+        // opened outside an <img> context (e.g. a direct link).
+        ext: z.enum(["png", "jpg", "jpeg", "webp"]),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const path = `${data.orgId}/logo-${Date.now()}.${data.ext}`;
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("org-logos")
+      .createSignedUploadUrl(path);
+    if (error) throw new Error(error.message);
+    const { data: pub } = supabaseAdmin.storage.from("org-logos").getPublicUrl(path);
+    return { signedUrl: signed.signedUrl, token: signed.token, publicUrl: pub.publicUrl };
+  });
+
+export const setOrganizationLogo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string; logoUrl: string | null }) =>
+    z.object({ id: z.string().uuid(), logoUrl: z.string().max(1000).nullable() }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("organizations")
+      .update({ logo_url: data.logoUrl })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 export const upsertOrganization = createServerFn({ method: "POST" })

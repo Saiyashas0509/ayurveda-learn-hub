@@ -3,7 +3,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { scheduleClass, listLiveClassesAdmin, cancelClass } from "@/lib/live-classes.functions";
+import {
+  scheduleClass,
+  listLiveClassesAdmin,
+  cancelClass,
+  listClassAttendance,
+} from "@/lib/live-classes.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +30,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  getGoogleConnectStatus,
+  getGoogleAuthStartUrl,
+  disconnectGoogle,
+} from "@/lib/google-meet.functions";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { StatusPill } from "@/components/admin/status-pill";
 import { toast } from "sonner";
@@ -63,6 +76,7 @@ function Page() {
   const [provider, setProvider] = useState<"zoom" | "meet" | "teams" | "other" | "all">("all");
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
+  const [attendanceFor, setAttendanceFor] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -104,7 +118,30 @@ function Page() {
     provider: "meet" as "zoom" | "meet" | "teams" | "other",
     startsAt: "",
     endsAt: "",
+    useGoogleMeet: false,
   });
+
+  const getGoogleStatus = useServerFn(getGoogleConnectStatus);
+  const getGoogleStart = useServerFn(getGoogleAuthStartUrl);
+  const disconnectGoogleFn = useServerFn(disconnectGoogle);
+  const { data: googleStatus } = useQuery({
+    queryKey: ["google-connect-status"],
+    queryFn: () => getGoogleStatus(),
+  });
+  const connectGoogle = async () => {
+    const state = crypto.randomUUID();
+    sessionStorage.setItem("google_oauth_state", state);
+    const { url } = await getGoogleStart({ data: { state } });
+    window.location.href = url;
+  };
+  const disconnectGoogleMut = useMutation({
+    mutationFn: () => disconnectGoogleFn(),
+    onSuccess: () => {
+      toast.success("Google account disconnected");
+      qc.invalidateQueries({ queryKey: ["google-connect-status"] });
+    },
+  });
+
   const create = useMutation({
     mutationFn: () =>
       scheduleFn({
@@ -112,16 +149,19 @@ function Page() {
           courseId: form.courseId,
           title: form.title,
           description: form.description || undefined,
-          meetingUrl: form.meetingUrl,
+          meetingUrl: form.useGoogleMeet ? undefined : form.meetingUrl,
           provider: form.provider,
           startsAt: new Date(form.startsAt).toISOString(),
           endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+          useGoogleMeet: form.useGoogleMeet,
         },
       }),
     onSuccess: () => {
       setForm({ ...form, title: "", description: "", meetingUrl: "", startsAt: "", endsAt: "" });
       setFormOpen(false);
-      toast.success("Class scheduled");
+      toast.success(
+        form.useGoogleMeet ? "Class scheduled with an auto-generated Meet link" : "Class scheduled",
+      );
       qc.invalidateQueries({ queryKey: ["live-admin"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to schedule"),
@@ -175,27 +215,61 @@ function Page() {
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
-          <Input
-            placeholder="Meeting URL (Zoom/Meet/Teams)"
-            value={form.meetingUrl}
-            onChange={(e) => setForm({ ...form, meetingUrl: e.target.value })}
-          />
-          <Select
-            value={form.provider}
-            onValueChange={(v: "zoom" | "meet" | "teams" | "other") =>
-              setForm({ ...form, provider: v })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="zoom">Zoom</SelectItem>
-              <SelectItem value="meet">Google Meet</SelectItem>
-              <SelectItem value="teams">Microsoft Teams</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 md:col-span-2">
+            <Switch
+              id="use-gmeet"
+              checked={form.useGoogleMeet}
+              onCheckedChange={(v) => setForm({ ...form, useGoogleMeet: v })}
+              disabled={!googleStatus?.connected}
+            />
+            <Label htmlFor="use-gmeet" className="flex-1 text-xs">
+              Auto-generate a Google Meet link{" "}
+              {googleStatus?.connected ? (
+                <span className="text-muted-foreground">(connected as {googleStatus.email})</span>
+              ) : (
+                <span className="text-muted-foreground">— connect your Google account first</span>
+              )}
+            </Label>
+            {googleStatus?.connected ? (
+              <Button size="sm" variant="ghost" onClick={() => disconnectGoogleMut.mutate()}>
+                Disconnect
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={connectGoogle}
+                disabled={!googleStatus?.configured}
+              >
+                Connect Google
+              </Button>
+            )}
+          </div>
+          {!form.useGoogleMeet && (
+            <Input
+              placeholder="Meeting URL (Zoom/Meet/Teams)"
+              value={form.meetingUrl}
+              onChange={(e) => setForm({ ...form, meetingUrl: e.target.value })}
+            />
+          )}
+          {!form.useGoogleMeet && (
+            <Select
+              value={form.provider}
+              onValueChange={(v: "zoom" | "meet" | "teams" | "other") =>
+                setForm({ ...form, provider: v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="zoom">Zoom</SelectItem>
+                <SelectItem value="meet">Google Meet</SelectItem>
+                <SelectItem value="teams">Microsoft Teams</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <label className="text-xs">
             Starts at{" "}
             <Input
@@ -218,7 +292,7 @@ function Page() {
               disabled={
                 !form.courseId ||
                 !form.title ||
-                !form.meetingUrl ||
+                (!form.useGoogleMeet && !form.meetingUrl) ||
                 !form.startsAt ||
                 create.isPending
               }
@@ -304,9 +378,11 @@ function Page() {
                   <StatusPill tone={started ? "neutral" : "info"}>
                     {started ? "Held" : "Scheduled"}
                   </StatusPill>
-                  <StatusPill tone="neutral" dot={false}>
-                    <Users className="h-3 w-3" /> {c.attendeeCount}
-                  </StatusPill>
+                  <button type="button" onClick={() => setAttendanceFor(c.id)}>
+                    <StatusPill tone="neutral" dot={false}>
+                      <Users className="h-3 w-3" /> {c.attendeeCount} clicked join
+                    </StatusPill>
+                  </button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
@@ -370,6 +446,50 @@ function Page() {
           </div>
         </div>
       )}
+
+      {attendanceFor && (
+        <AttendanceDialog classId={attendanceFor} onClose={() => setAttendanceFor(null)} />
+      )}
     </div>
+  );
+}
+
+function AttendanceDialog({ classId, onClose }: { classId: string; onClose: () => void }) {
+  const fetchAttendance = useServerFn(listClassAttendance);
+  const { data, isLoading } = useQuery({
+    queryKey: ["live-class-attendance", classId],
+    queryFn: () => fetchAttendance({ data: { classId } }),
+  });
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Who joined</DialogTitle>
+        </DialogHeader>
+        <p className="-mt-2 text-xs text-muted-foreground">
+          This records when someone clicked "Join" in the app — it does not confirm they stayed on
+          the call, since the actual video call happens on an external provider (Zoom/Meet/Teams)
+          this platform doesn't control.
+        </p>
+        <div className="max-h-80 space-y-2 overflow-y-auto">
+          {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+          {!isLoading && (data ?? []).length === 0 && (
+            <p className="text-sm text-muted-foreground">Nobody has clicked join yet.</p>
+          )}
+          {(data ?? []).map((a, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2 text-sm"
+            >
+              <span>{a.employees?.full_name ?? a.employees?.email ?? "Unknown"}</span>
+              <span className="text-xs text-muted-foreground">
+                {new Date(a.joined_at).toLocaleString()}
+              </span>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

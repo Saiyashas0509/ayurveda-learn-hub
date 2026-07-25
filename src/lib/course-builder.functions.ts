@@ -104,6 +104,24 @@ function slugify(s: string) {
     .slice(0, 80);
 }
 
+const APP_ROLES = [
+  "super_admin",
+  "hr_admin",
+  "regional_manager",
+  "center_head_doctor",
+  "front_office",
+  "therapist",
+  "trainer",
+  "auditor",
+  "student",
+  "doctor",
+  "franchise_owner",
+  "corporate_employee",
+  "hospital_staff",
+  "faculty",
+  "org_admin",
+] as const;
+
 export const upsertCourse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -113,6 +131,9 @@ export const upsertCourse = createServerFn({ method: "POST" })
       description?: string;
       cover_url?: string | null;
       preview_allowed?: boolean;
+      organization_id?: string | null;
+      target_roles?: string[] | null;
+      renewal_period_months?: number | null;
     }) =>
       z
         .object({
@@ -121,24 +142,59 @@ export const upsertCourse = createServerFn({ method: "POST" })
           description: z.string().max(4000).optional(),
           cover_url: z.string().max(1000).nullable().optional(),
           preview_allowed: z.boolean().optional(),
+          organization_id: z.string().uuid().nullable().optional(),
+          target_roles: z.array(z.enum(APP_ROLES)).max(15).nullable().optional(),
+          renewal_period_months: z.number().int().min(1).max(120).nullable().optional(),
         })
         .parse(data),
   )
   .handler(async ({ data, context }) => {
     await assertFaculty(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // organization_id is only ever settable to an org the actor themself can
+    // legitimately act for, or null (shared) — a faculty member with no org
+    // (e.g. the internal/global staff account) can only ever publish shared
+    // courses. Admins may set it to any real organization.
+    if (data.organization_id) {
+      const isAdmin = await (async () => {
+        const { data: roles } = await supabaseAdmin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", context.userId)
+          .in("role", ["super_admin", "hr_admin"]);
+        return !!(roles && roles.length);
+      })();
+      if (!isAdmin) {
+        const { data: employee } = await supabaseAdmin
+          .from("employees")
+          .select("organization_id")
+          .eq("id", context.userId)
+          .maybeSingle();
+        if (!employee?.organization_id || employee.organization_id !== data.organization_id) {
+          throw new Error("You can only assign this course to your own organization");
+        }
+      } else {
+        const { data: org } = await supabaseAdmin
+          .from("organizations")
+          .select("id")
+          .eq("id", data.organization_id)
+          .maybeSingle();
+        if (!org) throw new Error("Organization not found");
+      }
+    }
+    const patch = {
+      title: data.title,
+      description: data.description ?? null,
+      cover_url: data.cover_url ?? null,
+      preview_allowed: data.preview_allowed ?? false,
+      organization_id: data.organization_id ?? null,
+      target_roles: data.target_roles && data.target_roles.length ? data.target_roles : null,
+      renewal_period_months: data.renewal_period_months ?? null,
+    };
     if (data.id) {
       // duration_minutes is intentionally not writable here — it's derived
       // from lesson video lengths by recomputeCourseDuration.
-      const { error } = await supabaseAdmin
-        .from("courses")
-        .update({
-          title: data.title,
-          description: data.description ?? null,
-          cover_url: data.cover_url ?? null,
-          preview_allowed: data.preview_allowed ?? false,
-        })
-        .eq("id", data.id);
+      const { error } = await supabaseAdmin.from("courses").update(patch).eq("id", data.id);
       if (error) throw new Error(error.message);
       await logAudit({
         actorId: context.userId,
@@ -154,11 +210,8 @@ export const upsertCourse = createServerFn({ method: "POST" })
     const { data: inserted, error } = await supabaseAdmin
       .from("courses")
       .insert({
-        title: data.title,
+        ...patch,
         slug,
-        description: data.description ?? null,
-        cover_url: data.cover_url ?? null,
-        preview_allowed: data.preview_allowed ?? false,
         duration_minutes: 0,
         created_by: context.userId,
         status: "draft",
@@ -175,6 +228,19 @@ export const upsertCourse = createServerFn({ method: "POST" })
       metadata: { title: data.title },
     });
     return { id: inserted.id };
+  });
+
+export const listOrganizationsForPicker = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertFaculty(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("organizations")
+      .select("id,name")
+      .eq("is_active", true)
+      .order("name");
+    return data ?? [];
   });
 
 export const createModule = createServerFn({ method: "POST" })
@@ -387,6 +453,23 @@ export const updateLesson = createServerFn({ method: "POST" })
       target: data.id,
       metadata: { courseId: updated.course_id, fields: Object.keys(patch) },
     });
+
+    // A video was just attached — generate a quiz for it now. This is
+    // awaited (not true fire-and-forget): Cloudflare Workers can kill
+    // unawaited promises the moment the response finishes sending, so
+    // anything that must actually finish has to be on the response's own
+    // await chain — same reasoning as generateCertificatePdf in
+    // learning.functions.ts. The .catch keeps a slow/failed AI call from
+    // turning a successful lesson save into an error; generateLessonQuiz is
+    // idempotent, and publishCourse re-checks every video lesson as a
+    // safety net for anything that still failed here.
+    if (patch.video_url) {
+      const { generateLessonQuiz } = await import("@/lib/quiz-generation");
+      await generateLessonQuiz(supabaseAdmin, data.id).catch((e) =>
+        console.error(`[updateLesson] quiz generation failed for ${data.id}:`, e),
+      );
+    }
+
     return { ok: true };
   });
 
@@ -499,6 +582,37 @@ export const publishCourse = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("publish_course", { _course_id: data.courseId });
     if (error) throw new Error(error.message);
+
+    // Safety net for "a quiz exists the moment the video is published": the
+    // updateLesson-time trigger above usually already covers this by the
+    // time anyone gets around to publishing, but this closes the gap for
+    // any lesson where that run is still in flight, failed, or the video
+    // was attached some other way. Awaited (not backgrounded) so the
+    // guarantee is real by the time this call returns, at the cost of
+    // publish taking longer for a course with several un-quizzed videos.
+    const { data: videoLessons } = await supabaseAdmin
+      .from("lessons")
+      .select("id")
+      .eq("course_id", data.courseId)
+      .not("video_url", "is", null);
+    if (videoLessons?.length) {
+      const { data: existingQuizzes } = await supabaseAdmin
+        .from("quizzes")
+        .select("lesson_id")
+        .in(
+          "lesson_id",
+          videoLessons.map((l) => l.id),
+        );
+      const hasQuiz = new Set((existingQuizzes ?? []).map((q) => q.lesson_id));
+      const { generateLessonQuiz } = await import("@/lib/quiz-generation");
+      for (const lesson of videoLessons) {
+        if (hasQuiz.has(lesson.id)) continue;
+        await generateLessonQuiz(supabaseAdmin, lesson.id).catch((e) =>
+          console.error(`[publishCourse] quiz generation failed for lesson ${lesson.id}:`, e),
+        );
+      }
+    }
+
     await logAudit({
       actorId: context.userId,
       actorEmail: actorEmail(context),
@@ -567,6 +681,31 @@ export const attachQuizToLesson = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("quizzes").update({ lesson_id: data.lessonId }).eq("id", data.quizId);
     return { ok: true };
+  });
+
+// Manual trigger for the same automatic quiz generation that runs on
+// video-attach and at publish time (quiz-generation.ts) — lets faculty
+// retry it on demand (e.g. it failed the first time, or notes/transcript
+// were added after the video and there's more to work with now).
+export const generateQuizNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { lessonId: string }) =>
+    z.object({ lessonId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertFaculty(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { generateLessonQuiz } = await import("@/lib/quiz-generation");
+    const result = await generateLessonQuiz(supabaseAdmin, data.lessonId);
+    if (result.status !== "created") throw new Error(result.reason);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "quiz_generated",
+      target: result.quizId,
+      metadata: { lessonId: data.lessonId },
+    });
+    return { quizId: result.quizId };
   });
 
 export const upsertAssignment = createServerFn({ method: "POST" })

@@ -27,7 +27,10 @@ function Profile() {
         .select("email,full_name,designation,employee_code,centers(name)")
         .eq("id", u.user.id)
         .maybeSingle();
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", u.user.id);
       setMe({
         email: emp?.email,
         full_name: emp?.full_name,
@@ -51,7 +54,11 @@ function Profile() {
       <div className="rounded-xl border border-border bg-card p-6 shadow-card">
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gold text-2xl font-semibold text-gold-foreground">
-            {(me.full_name ?? "TA").split(" ").map((s) => s[0]).slice(0, 2).join("")}
+            {(me.full_name ?? "TA")
+              .split(" ")
+              .map((s) => s[0])
+              .slice(0, 2)
+              .join("")}
           </div>
           <div>
             <h2 className="font-display text-xl font-semibold">{me.full_name}</h2>
@@ -67,7 +74,8 @@ function Profile() {
       </div>
 
       <div className="rounded-xl border border-border bg-muted p-4 text-sm text-muted-foreground">
-        <User className="inline h-4 w-4" /> Profile changes are managed by HR. Contact your administrator to update these details.
+        <User className="inline h-4 w-4" /> Profile changes are managed by HR. Contact your
+        administrator to update these details.
       </div>
     </div>
   );

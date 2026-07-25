@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { listMyCertificates } from "@/lib/learning.functions";
-import { supabase } from "@/integrations/supabase/client";
-import { downloadCertificatePdf } from "@/lib/certificate-pdf";
+import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { listMyCertificates, getCertificateDownloadUrl } from "@/lib/learning.functions";
 import { Button } from "@/components/ui/button";
-import { Award, Download, ExternalLink } from "lucide-react";
+import { Award, Download, ExternalLink, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/certificates")({
   component: Certs,
@@ -13,24 +13,21 @@ export const Route = createFileRoute("/_authenticated/certificates")({
 
 function Certs() {
   const fn = useServerFn(listMyCertificates);
+  const getDownloadUrl = useServerFn(getCertificateDownloadUrl);
   const { data } = useSuspenseQuery(queryOptions({ queryKey: ["my-certs"], queryFn: () => fn() }));
+  const [downloadingCode, setDownloadingCode] = useState<string | null>(null);
 
-  // Certs are scoped to "me" (no user_id in the payload), so the learner's
-  // own name/center for the PDF is fetched the same lightweight way
-  // app-shell.tsx does for the sidebar profile card.
-  const { data: me } = useQuery({
-    queryKey: ["me-cert-profile"],
-    queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      const { data: emp } = await supabase
-        .from("employees")
-        .select("full_name,centers(name)")
-        .eq("id", u.user.id)
-        .maybeSingle();
-      return emp;
-    },
-  });
+  const download = async (certCode: string) => {
+    setDownloadingCode(certCode);
+    try {
+      const { url } = await getDownloadUrl({ data: { certCode } });
+      window.open(url, "_blank");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't generate certificate PDF");
+    } finally {
+      setDownloadingCode(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -90,18 +87,15 @@ function Certs() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() =>
-                        downloadCertificatePdf({
-                          learnerName: me?.full_name ?? "Certificate Holder",
-                          courseTitle: title,
-                          certCode: c.cert_code,
-                          issuedAt: c.issued_at,
-                          centerName: (me as { centers?: { name: string } | null })?.centers?.name,
-                          scorePercent: c.score_percent,
-                        })
-                      }
+                      disabled={downloadingCode === c.cert_code}
+                      onClick={() => download(c.cert_code)}
                     >
-                      <Download className="mr-1.5 h-3.5 w-3.5" /> Download PDF
+                      {downloadingCode === c.cert_code ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Download className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      Download PDF
                     </Button>
                   </div>
                 </div>

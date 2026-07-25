@@ -6,7 +6,9 @@ import { ROLE_LABELS, type AppRole } from "@/lib/auth-helpers";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { StatusPill } from "@/components/admin/status-pill";
 import { DeleteUserDialog } from "@/components/admin/delete-user-dialog";
-import { downloadCertificatePdf } from "@/lib/certificate-pdf";
+import { getCertificateDownloadUrl } from "@/lib/learning.functions";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -37,12 +39,26 @@ function UserProfilePage() {
   const { userId } = Route.useParams();
   const navigate = useNavigate();
   const fn = useServerFn(getUserActivityProfile);
+  const getDownloadUrl = useServerFn(getCertificateDownloadUrl);
+  const [downloadingCode, setDownloadingCode] = useState<string | null>(null);
   const { data } = useSuspenseQuery(
     queryOptions({
       queryKey: ["admin-user-profile", userId],
       queryFn: () => fn({ data: { userId } }),
     }),
   );
+
+  const downloadCert = async (certCode: string) => {
+    setDownloadingCode(certCode);
+    try {
+      const { url } = await getDownloadUrl({ data: { certCode } });
+      window.open(url, "_blank");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't generate certificate PDF");
+    } finally {
+      setDownloadingCode(null);
+    }
+  };
 
   const { employee, roles, isOnline, lastLogin, sessions, activityLog, certificates } = data;
   const centerName = (employee as { centers?: { name: string } | null }).centers?.name ?? "—";
@@ -286,16 +302,8 @@ function UserProfilePage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() =>
-                      downloadCertificatePdf({
-                        learnerName: employee.full_name,
-                        courseTitle: courseTitle ?? "Course",
-                        certCode: c.cert_code,
-                        issuedAt: c.issued_at,
-                        centerName: centerName !== "—" ? centerName : null,
-                        scorePercent: c.score_percent,
-                      })
-                    }
+                    disabled={downloadingCode === c.cert_code}
+                    onClick={() => downloadCert(c.cert_code)}
                   >
                     <Download className="mr-1.5 h-3.5 w-3.5" /> PDF
                   </Button>

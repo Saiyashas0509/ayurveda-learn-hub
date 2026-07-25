@@ -1,8 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { getCourse } from "@/lib/learning.functions";
-import { CheckCircle2, Circle, Clock, Lock, PlayCircle, MessagesSquare, Video } from "lucide-react";
+import {
+  useSuspenseQuery,
+  useQuery,
+  useMutation,
+  useQueryClient,
+  queryOptions,
+} from "@tanstack/react-query";
+import { useState } from "react";
+import { getCourse, getCourseRatings, submitCourseRating } from "@/lib/learning.functions";
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  Lock,
+  PlayCircle,
+  MessagesSquare,
+  Video,
+  Star,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/courses/$slug")({
   component: CoursePage,
@@ -16,6 +35,7 @@ function CoursePage() {
   );
   const completed = data.lessons.filter((l) => data.progress[l.id]).length;
   const pct = data.lessons.length ? Math.round((completed / data.lessons.length) * 100) : 0;
+  const hasStarted = data.lessons.some((l) => l.id in data.progress);
 
   return (
     <div className="space-y-8">
@@ -125,6 +145,98 @@ function CoursePage() {
           )}
         </ul>
       </div>
+
+      <RatingBlock courseId={data.course.id} canRate={hasStarted} />
+    </div>
+  );
+}
+
+function RatingBlock({ courseId, canRate }: { courseId: string; canRate: boolean }) {
+  const fetchRatings = useServerFn(getCourseRatings);
+  const rate = useServerFn(submitCourseRating);
+  const qc = useQueryClient();
+  const [hover, setHover] = useState(0);
+  const [comment, setComment] = useState("");
+
+  const { data } = useQuery({
+    queryKey: ["course-ratings", courseId],
+    queryFn: () => fetchRatings({ data: { courseId } }),
+  });
+
+  const mut = useMutation({
+    mutationFn: (rating: number) =>
+      rate({ data: { courseId, rating, comment: comment || undefined } }),
+    onSuccess: () => {
+      toast.success("Thanks for the feedback");
+      qc.invalidateQueries({ queryKey: ["course-ratings", courseId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't submit rating"),
+  });
+
+  if (!data) return null;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-lg font-semibold">Ratings</h2>
+        {data.count > 0 && (
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Star className="h-4 w-4 fill-gold text-gold" />
+            <span className="font-medium text-foreground">{data.average}</span>
+            <span>
+              ({data.count} rating{data.count === 1 ? "" : "s"})
+            </span>
+          </div>
+        )}
+      </div>
+
+      {canRate ? (
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                aria-label={`Rate ${n} star${n === 1 ? "" : "s"}`}
+                onMouseEnter={() => setHover(n)}
+                onMouseLeave={() => setHover(0)}
+                onClick={() => mut.mutate(n)}
+                disabled={mut.isPending}
+              >
+                <Star
+                  className={`h-6 w-6 ${
+                    n <= (hover || data.myRating || 0)
+                      ? "fill-gold text-gold"
+                      : "text-muted-foreground"
+                  }`}
+                />
+              </button>
+            ))}
+            {data.myRating && (
+              <span className="ml-2 text-xs text-muted-foreground">
+                Your rating: {data.myRating}
+              </span>
+            )}
+          </div>
+          <Textarea
+            placeholder="Optional feedback…"
+            rows={2}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+          {comment && (
+            <Button
+              size="sm"
+              disabled={mut.isPending}
+              onClick={() => mut.mutate(data.myRating || hover || 5)}
+            >
+              Save feedback
+            </Button>
+          )}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-muted-foreground">Start the course to leave a rating.</p>
+      )}
     </div>
   );
 }

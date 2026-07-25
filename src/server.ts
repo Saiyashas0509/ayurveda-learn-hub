@@ -118,6 +118,47 @@ function withGeoHeaders(request: Request): Request {
   return new Request(request, { headers });
 }
 
+// Daily Cloudflare Cron Trigger (see wrangler.jsonc's [triggers].crons) —
+// flags certificates entering their last 30 days before expiry and emails
+// the learner once per certificate (expiry_notified_at gates the resend).
+// A free-tier Worker cron, not a Supabase Edge Function — no extra
+// platform/credentials needed beyond what's already deployed.
+async function runCertificateExpiryCheck(env: Record<string, string | undefined>): Promise<void> {
+  for (const [k, v] of Object.entries(env)) if (v !== undefined) process.env[k] = v;
+  const { supabaseAdmin } = await import("./integrations/supabase/client.server");
+  const { emailUser } = await import("./lib/notify");
+
+  const warnBy = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: expiring } = await supabaseAdmin
+    .from("certificates")
+    .select("id,cert_code,user_id,expires_at,courses(title)")
+    .not("expires_at", "is", null)
+    .lte("expires_at", warnBy)
+    .is("expiry_notified_at", null);
+
+  for (const cert of expiring ?? []) {
+    const courseTitle = (cert.courses as { title?: string } | null)?.title ?? "your course";
+    const isExpired = new Date(cert.expires_at as string) < new Date();
+    try {
+      await emailUser(supabaseAdmin, {
+        userId: cert.user_id,
+        title: isExpired ? "Your certificate has expired" : "Your certificate is expiring soon",
+        body: isExpired
+          ? `Your certificate for "${courseTitle}" expired on ${new Date(cert.expires_at as string).toLocaleDateString()}. Please retake the course to renew it.`
+          : `Your certificate for "${courseTitle}" expires on ${new Date(cert.expires_at as string).toLocaleDateString()}. Retake the course to renew it before then.`,
+        link: "/certificates",
+        ctaLabel: "View certificate",
+      });
+    } catch (e) {
+      console.error(`Expiry email failed for certificate ${cert.cert_code}`, e);
+    }
+    await supabaseAdmin
+      .from("certificates")
+      .update({ expiry_notified_at: new Date().toISOString() })
+      .eq("id", cert.id);
+  }
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
@@ -134,5 +175,17 @@ export default {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     }
+  },
+
+  async scheduled(
+    _event: unknown,
+    env: Record<string, string | undefined>,
+    ctx: { waitUntil: (p: Promise<unknown>) => void },
+  ) {
+    ctx.waitUntil(
+      runCertificateExpiryCheck(env).catch((e) =>
+        console.error("Certificate expiry check failed", e),
+      ),
+    );
   },
 };

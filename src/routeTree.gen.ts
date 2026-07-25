@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as ScanRouteImport } from './routes/scan'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as DemoRouteImport } from './routes/demo'
 import { Route as CookiesRouteImport } from './routes/cookies'
@@ -45,6 +46,7 @@ import { Route as AuthenticatedDiscussionsCourseIdRouteImport } from './routes/_
 import { Route as AuthenticatedCoursesSlugRouteImport } from './routes/_authenticated/courses.$slug'
 import { Route as AuthenticatedAssignmentsAssignmentIdRouteImport } from './routes/_authenticated/assignments.$assignmentId'
 import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin/submissions'
+import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated/admin/reports'
 import { Route as AuthenticatedAdminOrganizationsRouteImport } from './routes/_authenticated/admin/organizations'
 import { Route as AuthenticatedAdminLiveRouteImport } from './routes/_authenticated/admin/live'
 import { Route as AuthenticatedAdminAuditLogsRouteImport } from './routes/_authenticated/admin/audit-logs'
@@ -52,6 +54,7 @@ import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users.index'
 import { Route as AuthenticatedAdminCoursesIndexRouteImport } from './routes/_authenticated/admin/courses.index'
 import { Route as AuthenticatedDiscussionsThreadThreadIdRouteImport } from './routes/_authenticated/discussions.thread.$threadId'
+import { Route as AuthenticatedAuthGoogleCallbackRouteImport } from './routes/_authenticated/auth.google.callback'
 import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users.$userId'
 import { Route as AuthenticatedAdminCoursesCourseIdRouteImport } from './routes/_authenticated/admin/courses.$courseId'
 
@@ -63,6 +66,11 @@ const TermsRoute = TermsRouteImport.update({
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScanRoute = ScanRouteImport.update({
+  id: '/scan',
+  path: '/scan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -244,6 +252,12 @@ const AuthenticatedAdminSubmissionsRoute =
     path: '/admin/submissions',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminReportsRoute =
+  AuthenticatedAdminReportsRouteImport.update({
+    id: '/admin/reports',
+    path: '/admin/reports',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminOrganizationsRoute =
   AuthenticatedAdminOrganizationsRouteImport.update({
     id: '/admin/organizations',
@@ -285,6 +299,12 @@ const AuthenticatedDiscussionsThreadThreadIdRoute =
     path: '/discussions/thread/$threadId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAuthGoogleCallbackRoute =
+  AuthenticatedAuthGoogleCallbackRouteImport.update({
+    id: '/auth/google/callback',
+    path: '/auth/google/callback',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminUsersUserIdRoute =
   AuthenticatedAdminUsersUserIdRouteImport.update({
     id: '/admin/users/$userId',
@@ -304,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/cookies': typeof CookiesRoute
   '/demo': typeof DemoRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/scan': typeof ScanRoute
   '/setup': typeof SetupRoute
   '/terms': typeof TermsRoute
   '/accept-terms': typeof AuthenticatedAcceptTermsRoute
@@ -324,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
   '/admin/live': typeof AuthenticatedAdminLiveRoute
   '/admin/organizations': typeof AuthenticatedAdminOrganizationsRoute
+  '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/assignments/$assignmentId': typeof AuthenticatedAssignmentsAssignmentIdRoute
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
@@ -340,6 +362,7 @@ export interface FileRoutesByFullPath {
   '/live/': typeof AuthenticatedLiveIndexRoute
   '/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/auth/google/callback': typeof AuthenticatedAuthGoogleCallbackRoute
   '/discussions/thread/$threadId': typeof AuthenticatedDiscussionsThreadThreadIdRoute
   '/admin/courses/': typeof AuthenticatedAdminCoursesIndexRoute
   '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
@@ -349,6 +372,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/cookies': typeof CookiesRoute
   '/privacy': typeof PrivacyRoute
+  '/scan': typeof ScanRoute
   '/setup': typeof SetupRoute
   '/terms': typeof TermsRoute
   '/accept-terms': typeof AuthenticatedAcceptTermsRoute
@@ -369,6 +393,7 @@ export interface FileRoutesByTo {
   '/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
   '/admin/live': typeof AuthenticatedAdminLiveRoute
   '/admin/organizations': typeof AuthenticatedAdminOrganizationsRoute
+  '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/assignments/$assignmentId': typeof AuthenticatedAssignmentsAssignmentIdRoute
   '/courses/$slug': typeof AuthenticatedCoursesSlugRoute
@@ -385,6 +410,7 @@ export interface FileRoutesByTo {
   '/live': typeof AuthenticatedLiveIndexRoute
   '/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
   '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/auth/google/callback': typeof AuthenticatedAuthGoogleCallbackRoute
   '/discussions/thread/$threadId': typeof AuthenticatedDiscussionsThreadThreadIdRoute
   '/admin/courses': typeof AuthenticatedAdminCoursesIndexRoute
   '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
@@ -397,6 +423,7 @@ export interface FileRoutesById {
   '/cookies': typeof CookiesRoute
   '/demo': typeof DemoRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/scan': typeof ScanRoute
   '/setup': typeof SetupRoute
   '/terms': typeof TermsRoute
   '/_authenticated/accept-terms': typeof AuthenticatedAcceptTermsRoute
@@ -417,6 +444,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/audit-logs': typeof AuthenticatedAdminAuditLogsRoute
   '/_authenticated/admin/live': typeof AuthenticatedAdminLiveRoute
   '/_authenticated/admin/organizations': typeof AuthenticatedAdminOrganizationsRoute
+  '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/assignments/$assignmentId': typeof AuthenticatedAssignmentsAssignmentIdRoute
   '/_authenticated/courses/$slug': typeof AuthenticatedCoursesSlugRoute
@@ -433,6 +461,7 @@ export interface FileRoutesById {
   '/_authenticated/live/': typeof AuthenticatedLiveIndexRoute
   '/_authenticated/admin/courses/$courseId': typeof AuthenticatedAdminCoursesCourseIdRoute
   '/_authenticated/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/_authenticated/auth/google/callback': typeof AuthenticatedAuthGoogleCallbackRoute
   '/_authenticated/discussions/thread/$threadId': typeof AuthenticatedDiscussionsThreadThreadIdRoute
   '/_authenticated/admin/courses/': typeof AuthenticatedAdminCoursesIndexRoute
   '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
@@ -445,6 +474,7 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/demo'
     | '/privacy'
+    | '/scan'
     | '/setup'
     | '/terms'
     | '/accept-terms'
@@ -465,6 +495,7 @@ export interface FileRouteTypes {
     | '/admin/audit-logs'
     | '/admin/live'
     | '/admin/organizations'
+    | '/admin/reports'
     | '/admin/submissions'
     | '/assignments/$assignmentId'
     | '/courses/$slug'
@@ -481,6 +512,7 @@ export interface FileRouteTypes {
     | '/live/'
     | '/admin/courses/$courseId'
     | '/admin/users/$userId'
+    | '/auth/google/callback'
     | '/discussions/thread/$threadId'
     | '/admin/courses/'
     | '/admin/users/'
@@ -490,6 +522,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cookies'
     | '/privacy'
+    | '/scan'
     | '/setup'
     | '/terms'
     | '/accept-terms'
@@ -510,6 +543,7 @@ export interface FileRouteTypes {
     | '/admin/audit-logs'
     | '/admin/live'
     | '/admin/organizations'
+    | '/admin/reports'
     | '/admin/submissions'
     | '/assignments/$assignmentId'
     | '/courses/$slug'
@@ -526,6 +560,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/admin/courses/$courseId'
     | '/admin/users/$userId'
+    | '/auth/google/callback'
     | '/discussions/thread/$threadId'
     | '/admin/courses'
     | '/admin/users'
@@ -537,6 +572,7 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/demo'
     | '/privacy'
+    | '/scan'
     | '/setup'
     | '/terms'
     | '/_authenticated/accept-terms'
@@ -557,6 +593,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/audit-logs'
     | '/_authenticated/admin/live'
     | '/_authenticated/admin/organizations'
+    | '/_authenticated/admin/reports'
     | '/_authenticated/admin/submissions'
     | '/_authenticated/assignments/$assignmentId'
     | '/_authenticated/courses/$slug'
@@ -573,6 +610,7 @@ export interface FileRouteTypes {
     | '/_authenticated/live/'
     | '/_authenticated/admin/courses/$courseId'
     | '/_authenticated/admin/users/$userId'
+    | '/_authenticated/auth/google/callback'
     | '/_authenticated/discussions/thread/$threadId'
     | '/_authenticated/admin/courses/'
     | '/_authenticated/admin/users/'
@@ -585,6 +623,7 @@ export interface RootRouteChildren {
   CookiesRoute: typeof CookiesRoute
   DemoRoute: typeof DemoRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
+  ScanRoute: typeof ScanRoute
   SetupRoute: typeof SetupRoute
   TermsRoute: typeof TermsRoute
   AdminLoginRoute: typeof AdminLoginRoute
@@ -606,6 +645,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scan': {
+      id: '/scan'
+      path: '/scan'
+      fullPath: '/scan'
+      preLoaderRoute: typeof ScanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -846,6 +892,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSubmissionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/reports': {
+      id: '/_authenticated/admin/reports'
+      path: '/admin/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AuthenticatedAdminReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/organizations': {
       id: '/_authenticated/admin/organizations'
       path: '/admin/organizations'
@@ -895,6 +948,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDiscussionsThreadThreadIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/auth/google/callback': {
+      id: '/_authenticated/auth/google/callback'
+      path: '/auth/google/callback'
+      fullPath: '/auth/google/callback'
+      preLoaderRoute: typeof AuthenticatedAuthGoogleCallbackRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/users/$userId': {
       id: '/_authenticated/admin/users/$userId'
       path: '/admin/users/$userId'
@@ -926,6 +986,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminAuditLogsRoute: typeof AuthenticatedAdminAuditLogsRoute
   AuthenticatedAdminLiveRoute: typeof AuthenticatedAdminLiveRoute
   AuthenticatedAdminOrganizationsRoute: typeof AuthenticatedAdminOrganizationsRoute
+  AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
   AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedAssignmentsAssignmentIdRoute: typeof AuthenticatedAssignmentsAssignmentIdRoute
   AuthenticatedCoursesSlugRoute: typeof AuthenticatedCoursesSlugRoute
@@ -939,6 +1000,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLiveIndexRoute: typeof AuthenticatedLiveIndexRoute
   AuthenticatedAdminCoursesCourseIdRoute: typeof AuthenticatedAdminCoursesCourseIdRoute
   AuthenticatedAdminUsersUserIdRoute: typeof AuthenticatedAdminUsersUserIdRoute
+  AuthenticatedAuthGoogleCallbackRoute: typeof AuthenticatedAuthGoogleCallbackRoute
   AuthenticatedDiscussionsThreadThreadIdRoute: typeof AuthenticatedDiscussionsThreadThreadIdRoute
   AuthenticatedAdminCoursesIndexRoute: typeof AuthenticatedAdminCoursesIndexRoute
   AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
@@ -958,6 +1020,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminAuditLogsRoute: AuthenticatedAdminAuditLogsRoute,
   AuthenticatedAdminLiveRoute: AuthenticatedAdminLiveRoute,
   AuthenticatedAdminOrganizationsRoute: AuthenticatedAdminOrganizationsRoute,
+  AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
   AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
   AuthenticatedAssignmentsAssignmentIdRoute:
     AuthenticatedAssignmentsAssignmentIdRoute,
@@ -974,6 +1037,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminCoursesCourseIdRoute:
     AuthenticatedAdminCoursesCourseIdRoute,
   AuthenticatedAdminUsersUserIdRoute: AuthenticatedAdminUsersUserIdRoute,
+  AuthenticatedAuthGoogleCallbackRoute: AuthenticatedAuthGoogleCallbackRoute,
   AuthenticatedDiscussionsThreadThreadIdRoute:
     AuthenticatedDiscussionsThreadThreadIdRoute,
   AuthenticatedAdminCoursesIndexRoute: AuthenticatedAdminCoursesIndexRoute,
@@ -1008,6 +1072,7 @@ const rootRouteChildren: RootRouteChildren = {
   CookiesRoute: CookiesRoute,
   DemoRoute: DemoRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
+  ScanRoute: ScanRoute,
   SetupRoute: SetupRoute,
   TermsRoute: TermsRoute,
   AdminLoginRoute: AdminLoginRoute,

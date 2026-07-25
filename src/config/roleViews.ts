@@ -17,6 +17,7 @@ import {
   CalendarDays,
   MessagesSquare,
   LifeBuoy,
+  FileSpreadsheet,
 } from "lucide-react";
 
 export type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
@@ -68,6 +69,7 @@ const orgAdminGroup: NavGroup = {
     { to: "/admin", label: "Org Dashboard", icon: Building2 },
     { to: "/admin/users", label: "Members", icon: Users },
     { to: "/admin/announcements", label: "Announcements", icon: Bell },
+    { to: "/admin/reports", label: "Reports", icon: FileSpreadsheet },
   ],
 };
 
@@ -82,6 +84,7 @@ const platformAdminGroup: NavGroup = {
     { to: "/admin/live", label: "Schedule Class", icon: Video },
     { to: "/admin/announcements", label: "Announcements", icon: Bell },
     { to: "/admin/audit-logs", label: "Audit Logs", icon: ClipboardList },
+    { to: "/admin/reports", label: "Reports", icon: FileSpreadsheet },
   ],
 };
 

@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { emailUser } from "@/lib/notify";
+import { isLateSubmission, canSubmit } from "@/lib/assignment-rules";
 
 const FACULTY_ROLES = ["super_admin", "hr_admin", "trainer", "faculty"] as const;
 
@@ -50,6 +51,10 @@ export const getAssignment = createServerFn({ method: "GET" })
     return { assignment, submission };
   });
 
+// Mirrors the extension→kind mapping in upload-helper.ts's uploadToBucket —
+// kept in sync manually since one is client code and one is server code.
+const FILE_KINDS = ["video", "pdf", "ppt", "doc", "image", "zip", "other"] as const;
+
 export const submitAssignment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -59,12 +64,32 @@ export const submitAssignment = createServerFn({ method: "POST" })
           assignmentId: z.string().uuid(),
           fileUrl: z.string().max(1000),
           fileName: z.string().max(300),
-          fileKind: z.string().max(50),
+          fileKind: z.enum(FILE_KINDS),
         })
         .parse(data),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // fileUrl is a storage path the client claims to have uploaded to — without
+    // this check, any signed-in user could call this function directly (not
+    // through the upload UI) with an arbitrary path, including one under
+    // another user's folder, and have it recorded as their own submission.
+    // getUploadUrl already enforces this same "own folder only" rule at
+    // upload time; this re-checks it here since submitAssignment is a
+    // separate, independently-callable server function.
+    if (!data.fileUrl.startsWith(`${context.userId}/`)) {
+      throw new Error("Invalid file reference");
+    }
+    const folderPath = data.fileUrl.slice(0, data.fileUrl.lastIndexOf("/"));
+    const objectName = data.fileUrl.slice(data.fileUrl.lastIndexOf("/") + 1);
+    const { data: listed } = await supabaseAdmin.storage
+      .from("assignment-submissions")
+      .list(folderPath, { search: objectName });
+    if (!listed?.some((f) => f.name === objectName)) {
+      throw new Error("That file hasn't finished uploading — please try again.");
+    }
+
     const { data: a } = await supabaseAdmin
       .from("assignments")
       .select("due_at,allow_late")
@@ -72,8 +97,8 @@ export const submitAssignment = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!a) throw new Error("Assignment not found");
     const now = new Date();
-    const isLate = a.due_at ? now > new Date(a.due_at) : false;
-    if (isLate && !a.allow_late) throw new Error("Late submissions are not allowed");
+    const isLate = isLateSubmission(a.due_at);
+    if (!canSubmit(a.due_at, a.allow_late)) throw new Error("Late submissions are not allowed");
     const { error } = await supabaseAdmin.from("assignment_submissions").upsert(
       {
         assignment_id: data.assignmentId,

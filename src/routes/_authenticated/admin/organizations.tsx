@@ -9,6 +9,8 @@ import {
   listCenters,
   upsertCenter,
   deleteCenter,
+  getOrgLogoUploadUrl,
+  setOrganizationLogo,
   ORG_TYPES,
   CENTER_TYPES,
 } from "@/lib/org.functions";
@@ -42,7 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Building2, MapPin, Plus, Pencil, Trash2 } from "lucide-react";
+import { Building2, MapPin, Plus, Pencil, Trash2, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/organizations")({
   component: OrganizationsPage,
@@ -263,6 +265,7 @@ type OrgRow = {
   contact_email: string | null;
   is_active: boolean;
   created_at: string;
+  logo_url: string | null;
 };
 
 type CenterRow = {
@@ -280,9 +283,13 @@ type CenterRow = {
 function OrgDialog({ org, onClose }: { org?: OrgRow; onClose: () => void }) {
   const qc = useQueryClient();
   const save = useServerFn(upsertOrganization);
+  const getLogoUploadUrl = useServerFn(getOrgLogoUploadUrl);
+  const setLogo = useServerFn(setOrganizationLogo);
   const [name, setName] = useState(org?.name ?? "");
   const [orgType, setOrgType] = useState(org?.org_type ?? "internal");
   const [contactEmail, setContactEmail] = useState(org?.contact_email ?? "");
+  const [logoUrl, setLogoUrl] = useState(org?.logo_url ?? "");
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const saveMut = useMutation({
     mutationFn: () => save({ data: { id: org?.id, name, orgType, contactEmail } }),
@@ -294,6 +301,44 @@ function OrgDialog({ org, onClose }: { org?: OrgRow; onClose: () => void }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
+  const uploadLogo = async (file: File) => {
+    if (!org) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return;
+    }
+    const ext = (file.name.split(".").pop() || "png").toLowerCase();
+    if (!["png", "jpg", "jpeg", "webp"].includes(ext)) {
+      toast.error("Use PNG, JPG, or WEBP");
+      return;
+    }
+    setLogoUploading(true);
+    try {
+      const { signedUrl, publicUrl } = await getLogoUploadUrl({
+        data: { orgId: org.id, ext: ext as "png" | "jpg" | "jpeg" | "webp" },
+      });
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", signedUrl, true);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.onload = () =>
+          xhr.status >= 200 && xhr.status < 300
+            ? resolve()
+            : reject(new Error(`Upload failed: ${xhr.status}`));
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+        xhr.send(file);
+      });
+      await setLogo({ data: { id: org.id, logoUrl: publicUrl } });
+      setLogoUrl(publicUrl);
+      qc.invalidateQueries({ queryKey: ["admin-organizations"] });
+      toast.success("Logo updated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Logo upload failed");
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
@@ -301,6 +346,31 @@ function OrgDialog({ org, onClose }: { org?: OrgRow; onClose: () => void }) {
           <DialogTitle>{org ? "Edit organization" : "New organization"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {org && (
+            <div className="space-y-2">
+              <Label>Logo</Label>
+              <div className="flex items-center gap-3">
+                <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+                  ) : (
+                    <Building2 className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+                <label className="cursor-pointer rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={logoUploading}
+                    onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])}
+                  />
+                  <Upload className="mr-1.5 inline h-3.5 w-3.5" />
+                  {logoUploading ? "Uploading…" : "Upload logo"}
+                </label>
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />

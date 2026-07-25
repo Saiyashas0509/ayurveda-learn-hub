@@ -22,7 +22,9 @@ function SetupPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    check({}).then((r) => setState(r.exists ? "done" : "form")).catch(() => setState("form"));
+    check({})
+      .then((r) => setState(r.exists ? "done" : "form"))
+      .catch(() => setState("form"));
   }, [check]);
 
   async function submit(e: React.FormEvent) {
@@ -47,11 +49,14 @@ function SetupPage() {
         </div>
         <h1 className="mt-4 font-display text-2xl font-semibold">First-time setup</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create the initial Super Admin account. This screen only works once — after that, all users are managed from the admin panel.
+          Create the initial Super Admin account. This screen only works once — after that, all
+          users are managed from the admin panel.
         </p>
 
         {state === "checking" && (
-          <div className="mt-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          <div className="mt-8 flex justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
         )}
 
         {state === "done" && (
@@ -60,7 +65,9 @@ function SetupPage() {
             <p className="mt-1 text-muted-foreground">
               A Super Admin has been created. Please sign in from the login page.
             </p>
-            <Button className="mt-4" onClick={() => navigate({ to: "/auth" })}>Go to sign in</Button>
+            <Button className="mt-4" onClick={() => navigate({ to: "/auth" })}>
+              Go to sign in
+            </Button>
           </div>
         )}
 
@@ -68,11 +75,26 @@ function SetupPage() {
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full name</Label>
-              <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required maxLength={120} placeholder="Your full name" />
+              <Input
+                id="name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+                maxLength={120}
+                placeholder="Your full name"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Company email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={255} placeholder="admin@travancoreayurveda.com" />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                maxLength={255}
+                placeholder="admin@travancoreayurveda.com"
+              />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Super Admin"}

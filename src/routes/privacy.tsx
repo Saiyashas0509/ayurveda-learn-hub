@@ -133,13 +133,24 @@ function PrivacyPage() {
           <strong>Supabase</strong> — database, authentication, and file storage
         </li>
         <li>
-          <strong>Cloudflare</strong> — hosting, content delivery, and security
+          <strong>Cloudflare</strong> — hosting, content delivery, security, and (when a trainer
+          requests automatic video transcription) speech-to-text processing of the lesson video's
+          audio, run on the same Cloudflare account as the Platform itself
         </li>
         <li>
           <strong>Hostinger</strong> — training video file hosting
         </li>
         <li>
-          <strong>Google</strong> — only if you choose "Continue with Google" to sign in
+          <strong>Google</strong> — if you choose "Continue with Google" to sign in, or if a trainer
+          connects their Google account to auto-generate Meet links for live classes
+        </li>
+        <li>
+          <strong>Groq</strong> — only when you use the Ayurveda Assistant chat; your message is
+          sent to Groq to generate a response
+        </li>
+        <li>
+          <strong>Resend</strong> — sends transactional emails (grades, announcements,
+          certificate-expiry reminders) if you have email notifications enabled in Settings
         </li>
       </ul>
       <p>

@@ -11,7 +11,9 @@ export const Route = createFileRoute("/_authenticated/assignments/")({
 
 function MyAssignments() {
   const list = useServerFn(listMyAssignments);
-  const { data } = useSuspenseQuery(queryOptions({ queryKey: ["my-assignments"], queryFn: () => list() }));
+  const { data } = useSuspenseQuery(
+    queryOptions({ queryKey: ["my-assignments"], queryFn: () => list() }),
+  );
 
   return (
     <div className="space-y-6">
@@ -41,8 +43,20 @@ function MyAssignments() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <Badge variant={status === "graded" ? "default" : status === "submitted" ? "secondary" : "outline"}>
-                    {status === "graded" ? `Graded ${sub?.grade}/${a.max_score}` : status === "submitted" ? "Submitted" : "Not submitted"}
+                  <Badge
+                    variant={
+                      status === "graded"
+                        ? "default"
+                        : status === "submitted"
+                          ? "secondary"
+                          : "outline"
+                    }
+                  >
+                    {status === "graded"
+                      ? `Graded ${sub?.grade}/${a.max_score}`
+                      : status === "submitted"
+                        ? "Submitted"
+                        : "Not submitted"}
                   </Badge>
                   {sub?.is_late && <p className="mt-1 text-[10px] text-destructive">Late</p>}
                 </div>
@@ -50,7 +64,9 @@ function MyAssignments() {
             </li>
           );
         })}
-        {data.length === 0 && <li className="p-8 text-center text-sm text-muted-foreground">No assignments yet.</li>}
+        {data.length === 0 && (
+          <li className="p-8 text-center text-sm text-muted-foreground">No assignments yet.</li>
+        )}
       </ul>
     </div>
   );
