@@ -2,7 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { notifyUser } from "@/lib/notify";
+import { emailUser } from "@/lib/notify";
 
 const FACULTY_ROLES = ["super_admin", "hr_admin", "trainer", "faculty"] as const;
 
@@ -221,16 +221,19 @@ export const gradeSubmission = createServerFn({ method: "POST" })
       metadata: { grade: data.grade },
     });
 
+    // tg_notify_grade (see supabase/migrations) already created the in-app
+    // notification the instant the update above committed — this only adds
+    // a richer email on top (the trigger's own copy is a generic "Your
+    // submission has been graded." with no grade/feedback in the body).
     const assignmentTitle =
       (updated as unknown as { assignments?: { title?: string } | null }).assignments?.title ??
       "your assignment";
-    await notifyUser(supabaseAdmin, {
+    await emailUser(supabaseAdmin, {
       userId: updated.user_id,
-      type: "result",
       title: "Assignment graded",
       body: `"${assignmentTitle}" has been graded: ${data.grade}${data.feedback ? ` — ${data.feedback}` : ""}`,
       link: "/assignments",
-      emailCtaLabel: "View feedback",
+      ctaLabel: "View feedback",
     });
 
     return { ok: true };

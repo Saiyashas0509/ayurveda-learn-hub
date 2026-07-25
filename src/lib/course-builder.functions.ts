@@ -638,23 +638,17 @@ export const upsertAssignment = createServerFn({ method: "POST" })
       metadata: { title: data.title, courseId: data.course_id },
     });
 
-    // Only notify for assignments added to an already-published course —
-    // nothing to tell learners about while it's still a draft.
-    const { data: course } = await supabaseAdmin
-      .from("courses")
-      .select("title,is_published")
-      .eq("id", data.course_id)
-      .maybeSingle();
-    if (course?.is_published) {
-      const { notifyAllActiveEmployees } = await import("@/lib/notify");
-      await notifyAllActiveEmployees(supabaseAdmin, {
-        type: "assignment",
-        title: "New assignment posted",
-        body: `"${data.title}" was added to ${course.title}.`,
-        link: "/assignments",
-        emailCtaLabel: "View assignment",
-      });
-    }
+    // tg_notify_assignment (see supabase/migrations) already notified everyone
+    // with progress in this course the instant the row above was inserted —
+    // naturally nobody for a still-draft course, since nobody has progress in
+    // one yet. This only adds email on top, for that same audience.
+    const { emailNotificationRecipients } = await import("@/lib/notify");
+    await emailNotificationRecipients(supabaseAdmin, {
+      type: "assignment",
+      dataMatch: { assignment_id: row.id },
+      ctaLabel: "View assignment",
+      excludeUserId: context.userId,
+    });
 
     return { id: row.id };
   });

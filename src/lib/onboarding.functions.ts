@@ -131,8 +131,28 @@ export const completeOnboarding = createServerFn({ method: "POST" })
       throw new Error("This role requires an admin invitation. Please contact your administrator.");
     }
 
-    // Resolve org: pending overrides; otherwise use submitted.
-    const organizationId = pending?.organization_id ?? data.organizationId;
+    // Resolve org. An admin invite (pending_bootstrap) sets this server-side —
+    // trusted. A pure walk-in self-signup (no invite) must NOT be trusted to
+    // name its own organization: organizationId was previously taken straight
+    // from client input here, which would let a self-registered doctor/
+    // faculty/trainer account (self-signup roles) attach itself to *any*
+    // organization by UUID and inherit whatever org-scoped visibility that
+    // grants elsewhere in the app. Self-signups always land in the default
+    // "internal" org instead; only an admin invite can place someone in a
+    // different one.
+    let organizationId = pending?.organization_id ?? null;
+    if (!organizationId) {
+      const { data: internalOrg } = await supabaseAdmin
+        .from("organizations")
+        .select("id")
+        .eq("slug", "internal")
+        .maybeSingle();
+      organizationId = internalOrg?.id ?? null;
+    }
+    // Center IS safe to take from client input, unlike organizationId above —
+    // it can only be a real row from the (public) centers list, and a DB
+    // trigger derives organization_id from a valid center_id server-side,
+    // overriding the "internal" default above with that center's real org.
     const centerId = pending?.center_id ?? data.centerId ?? null;
 
     // Upsert employee row.

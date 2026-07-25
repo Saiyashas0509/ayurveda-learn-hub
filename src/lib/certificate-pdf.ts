@@ -53,13 +53,21 @@ export function downloadCertificatePdf(params: {
   doc.setTextColor(...navy);
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text(courseTitle, pageW / 2, 98, { align: "center", maxWidth: pageW - 60 });
+  const titleMaxWidth = pageW - 60;
+  const titleLines = doc.splitTextToSize(courseTitle, titleMaxWidth) as string[];
+  doc.text(titleLines, pageW / 2, 98, { align: "center", maxWidth: titleMaxWidth });
   doc.setFont("helvetica", "normal");
+
+  // Long titles wrap onto extra lines (splitTextToSize above) — push the
+  // score line down to clear them instead of always sitting a fixed 10mm
+  // below the title's first line, which overlapped on wrapped titles.
+  const titleLineHeight = 7;
+  const scoreY = 98 + Math.max(1, titleLines.length) * titleLineHeight;
 
   if (scorePercent != null) {
     doc.setTextColor(...muted);
     doc.setFontSize(11);
-    doc.text(`Score: ${scorePercent}%`, pageW / 2, 108, { align: "center" });
+    doc.text(`Score: ${scorePercent}%`, pageW / 2, scoreY, { align: "center" });
   }
 
   const bottomY = pageH - 24;

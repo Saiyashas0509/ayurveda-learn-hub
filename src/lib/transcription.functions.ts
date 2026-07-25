@@ -12,6 +12,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { logAudit } from "@/lib/audit";
+import { VIDEO_BASE_URL } from "@/lib/upload-video";
 
 const FACULTY_ROLES = ["super_admin", "hr_admin", "trainer", "faculty"] as const;
 const MAX_WHISPER_BYTES = 25 * 1024 * 1024;
@@ -45,6 +46,16 @@ export const transcribeLessonVideo = createServerFn({ method: "POST" })
       .eq("id", data.lessonId)
       .maybeSingle();
     if (!lesson?.video_url) throw new Error("This lesson doesn't have a video yet.");
+
+    // Only ever fetch from our own known video host — video_url is settable
+    // via updateLesson by any faculty/trainer account (including self-signup
+    // ones), so without this a lesson could be pointed at an arbitrary
+    // internal or third-party URL and have this server fetch it (SSRF).
+    if (!lesson.video_url.startsWith(VIDEO_BASE_URL)) {
+      throw new Error(
+        "Automatic transcription only works for videos uploaded through this platform.",
+      );
+    }
 
     const headRes = await fetch(lesson.video_url, { method: "HEAD" });
     const size = Number(headRes.headers.get("content-length") ?? "0");

@@ -96,19 +96,32 @@ export const createEmployeeUser = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     const userId = created.user!.id;
 
-    await supabaseAdmin.from("employees").insert({
-      id: userId,
-      email: data.email,
-      full_name: data.fullName,
-      center_id: data.centerId ?? null,
-      designation: data.designation ?? null,
-      employee_code: data.employeeCode ?? null,
-      status: "active",
-      // Admin-created accounts skip the self-signup onboarding wizard —
-      // the admin already supplied everything it would have collected.
-      onboarding_completed_at: new Date().toISOString(),
-    });
-    await supabaseAdmin.from("user_roles").insert({ user_id: userId, role: data.role });
+    try {
+      const { error: empError } = await supabaseAdmin.from("employees").insert({
+        id: userId,
+        email: data.email,
+        full_name: data.fullName,
+        center_id: data.centerId ?? null,
+        designation: data.designation ?? null,
+        employee_code: data.employeeCode ?? null,
+        status: "active",
+        // Admin-created accounts skip the self-signup onboarding wizard —
+        // the admin already supplied everything it would have collected.
+        onboarding_completed_at: new Date().toISOString(),
+      });
+      if (empError) throw new Error(empError.message);
+
+      const { error: roleError } = await supabaseAdmin
+        .from("user_roles")
+        .insert({ user_id: userId, role: data.role });
+      if (roleError) throw new Error(roleError.message);
+    } catch (err) {
+      // Undo the auth account so the email isn't left permanently stuck
+      // "already registered" with no employee record to show for it.
+      await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => null);
+      throw err;
+    }
+
     await supabaseAdmin.from("audit_logs").insert({
       actor_id: context.userId,
       action: "user_created",
@@ -192,17 +205,34 @@ export const bulkCreateEmployeeUsers = createServerFn({ method: "POST" })
         if (error) throw new Error(error.message);
         const userId = created.user!.id;
 
-        await supabaseAdmin.from("employees").insert({
-          id: userId,
-          email: row.email,
-          full_name: row.fullName,
-          center_id: centerId,
-          designation: row.designation || null,
-          employee_code: row.employeeCode || null,
-          status: "active",
-          onboarding_completed_at: new Date().toISOString(),
-        });
-        await supabaseAdmin.from("user_roles").insert({ user_id: userId, role });
+        // If either insert below fails (e.g. a duplicate employee_code) and
+        // goes unnoticed, the row would previously get reported as
+        // successfully imported despite no employee record existing — and
+        // the email would be permanently stuck "already registered" with no
+        // way to see why. Check both, and undo the auth user on failure so
+        // the email is free to retry instead of stuck in limbo.
+        try {
+          const { error: empError } = await supabaseAdmin.from("employees").insert({
+            id: userId,
+            email: row.email,
+            full_name: row.fullName,
+            center_id: centerId,
+            designation: row.designation || null,
+            employee_code: row.employeeCode || null,
+            status: "active",
+            onboarding_completed_at: new Date().toISOString(),
+          });
+          if (empError) throw new Error(empError.message);
+
+          const { error: roleError } = await supabaseAdmin
+            .from("user_roles")
+            .insert({ user_id: userId, role });
+          if (roleError) throw new Error(roleError.message);
+        } catch (rowErr) {
+          await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => null);
+          throw rowErr;
+        }
+
         if (isAdminRole(role)) {
           await sendAdminPasswordSetupEmail(row.email);
         }
@@ -343,23 +373,39 @@ export const publishAnnouncement = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("announcements").insert({
-      title: data.title,
-      body: data.body,
-      created_by: context.userId,
-    });
+    const { data: announcement, error } = await supabaseAdmin
+      .from("announcements")
+      .insert({
+        title: data.title,
+        body: data.body,
+        created_by: context.userId,
+        // The column DEFAULTs to '{}' (empty array), not NULL — and
+        // tg_notify_announcement only treats a NULL audience_roles as
+        // "everyone" (`WHERE NEW.audience_roles IS NULL OR ...`). Leaving it
+        // at the default silently matched zero recipients for every
+        // announcement ever published this way. Explicit null here targets
+        // all roles, matching what the admin UI actually promises ("visible
+        // on every employee's dashboard").
+        audience_roles: null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
     await supabaseAdmin.from("audit_logs").insert({
       actor_id: context.userId,
       action: "announcement_published",
       metadata: { title: data.title },
     });
-    const { notifyAllActiveEmployees } = await import("@/lib/notify");
-    await notifyAllActiveEmployees(supabaseAdmin, {
+    // tg_notify_announcement (see supabase/migrations) already created the
+    // in-app notification for every user in the target audience the instant
+    // the row above was inserted — this only adds email on top, for exactly
+    // that same audience.
+    const { emailNotificationRecipients } = await import("@/lib/notify");
+    await emailNotificationRecipients(supabaseAdmin, {
       type: "announcement",
-      title: data.title,
-      body: data.body,
-      link: "/dashboard",
-      emailCtaLabel: "View announcement",
+      dataMatch: { announcement_id: announcement.id },
+      ctaLabel: "View announcement",
+      excludeUserId: context.userId,
     });
     return { ok: true };
   });
@@ -369,7 +415,20 @@ export const publishAnnouncement = createServerFn({ method: "POST" })
 // auditors need full read visibility for their job but shouldn't get those
 // write powers, so this is intentionally a separate, read-only allowance.
 const OVERVIEW_PLATFORM_ROLES = new Set([...PLATFORM_WIDE_ROLES, "auditor"]);
-const OVERVIEW_ORG_SCOPED_ROLES = new Set(ORG_SCOPED_ROLES);
+// Deliberately narrower than the general ORG_SCOPED_ROLES set (which also
+// includes doctor/faculty/trainer for the lower-stakes personal "My
+// Dashboard" aggregate counts) — this endpoint additionally exposes a raw
+// audit-log feed (actor emails, actions, metadata) for the org, so it's
+// restricted to the roles that actually have org-oversight nav access in
+// roleViews.ts's orgAdminGroup. doctor/faculty/trainer are self-signup roles
+// (see SELF_SIGNUP_ROLES) — including them here would let a self-registered
+// account read another organization's employee/audit data.
+const OVERVIEW_ORG_SCOPED_ROLES = new Set([
+  "org_admin",
+  "franchise_owner",
+  "regional_manager",
+  "center_head_doctor",
+]);
 
 export const getAdminOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -602,8 +661,15 @@ export const getAdminAnalytics = createServerFn({ method: "GET" })
     }
 
     const WEEKS = 12;
-    const windowStart = new Date();
-    windowStart.setDate(windowStart.getDate() - WEEKS * 7);
+    // Must match bucketByWeek's own oldest-bucket calculation exactly
+    // (day-aligned via setHours(0,0,0,0), not "now minus N*7 days") — those
+    // used to disagree by up to ~7 hours-to-a-week, so records in that gap
+    // were fetched from the DB but then matched no bucket and were silently
+    // dropped from the chart.
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const windowStart = new Date(startOfToday);
+    windowStart.setDate(windowStart.getDate() - (WEEKS - 1) * 7);
     const windowStartIso = windowStart.toISOString();
 
     let scopedEmployeeIds: string[] = [];
