@@ -64,7 +64,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { GripVertical, Plus, Trash2, Video, FileText, Wand2, Upload, Save } from "lucide-react";
+import {
+  GripVertical,
+  Plus,
+  Trash2,
+  Video,
+  FileText,
+  Wand2,
+  Upload,
+  Save,
+  StickyNote,
+  Captions,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/courses/$courseId")({
@@ -316,6 +327,8 @@ function Structure({
     duration_seconds: number | null;
     preview_allowed: boolean;
     description: string | null;
+    key_notes: string | null;
+    transcript: string | null;
     resources: unknown;
   }[];
   quizzes: { id: string; title: string; lesson_id: string | null; pass_percent: number }[];
@@ -602,6 +615,8 @@ function LessonEditor({
     video_url: string | null;
     duration_seconds: number | null;
     preview_allowed: boolean;
+    key_notes: string | null;
+    transcript: string | null;
     resources: unknown;
   };
   quizzes: { id: string; title: string; lesson_id: string | null }[];
@@ -626,6 +641,8 @@ function LessonEditor({
   const [resources, setResources] = useState<Resource[]>(
     Array.isArray(lesson.resources) ? (lesson.resources as Resource[]) : [],
   );
+  const [keyNotes, setKeyNotes] = useState(lesson.key_notes ?? "");
+  const [transcript, setTranscript] = useState(lesson.transcript ?? "");
   const [videoProgress, setVideoProgress] = useState<number | null>(null);
   const [resProgress, setResProgress] = useState<number | null>(null);
   const [newQuizTitle, setNewQuizTitle] = useState("");
@@ -668,6 +685,8 @@ function LessonEditor({
         video_url: resolveVideoUrl(videoInput) || null,
         duration_seconds: Math.round((Number(durationMinutes) || 0) * 60),
         preview_allowed: preview,
+        key_notes: keyNotes,
+        transcript,
         resources,
       },
     }).then(() => {
@@ -789,6 +808,42 @@ function LessonEditor({
                 className="w-24"
               />
             </div>
+          </div>
+
+          <div>
+            <Label className="flex items-center gap-1">
+              <StickyNote className="h-4 w-4" /> Key notes
+            </Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Bullet points or a summary shown to learners alongside the video — the takeaways they
+              should remember.
+            </p>
+            <Textarea
+              className="mt-2"
+              value={keyNotes}
+              onChange={(e) => setKeyNotes(e.target.value)}
+              rows={4}
+              maxLength={4000}
+              placeholder="- Key point one&#10;- Key point two"
+            />
+          </div>
+
+          <div>
+            <Label className="flex items-center gap-1">
+              <Captions className="h-4 w-4" /> Transcript
+            </Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Full text of the video's narration — helps learners who prefer reading and makes the
+              lesson searchable.
+            </p>
+            <Textarea
+              className="mt-2"
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              rows={6}
+              maxLength={20000}
+              placeholder="Paste or type the video transcript here…"
+            />
           </div>
 
           <div className="rounded-md border border-border p-3">

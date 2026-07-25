@@ -30,6 +30,7 @@ import {
 import { AdminHeader } from "@/components/admin/admin-header";
 import { StatusPill } from "@/components/admin/status-pill";
 import { DeleteUserDialog } from "@/components/admin/delete-user-dialog";
+import { ImportUsersDialog } from "@/components/admin/import-users-dialog";
 import {
   TABLE_WRAP,
   TABLE,
@@ -199,89 +200,92 @@ function UsersPage() {
         title="Users"
         description={`${total} employee${total === 1 ? "" : "s"} across the organization.`}
         actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                New employee
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create employee account</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={create} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Full name</Label>
-                  <Input
-                    value={form.fullName}
-                    onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                    required
-                    maxLength={120}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Company email</Label>
-                  <Input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    required
-                    maxLength={255}
-                  />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Role</Label>
-                    <Select
-                      value={form.role}
-                      onValueChange={(v) => setForm({ ...form, role: v as AppRole })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.entries(ROLE_LABELS) as [AppRole, string][]).map(([v, l]) => (
-                          <SelectItem key={v} value={v}>
-                            {l}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Center</Label>
-                    <Select
-                      value={form.centerId}
-                      onValueChange={(v) => setForm({ ...form, centerId: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select center" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {centers.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Designation</Label>
-                  <Input
-                    value={form.designation}
-                    onChange={(e) => setForm({ ...form, designation: e.target.value })}
-                    maxLength={120}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={saving}>
-                  {saving ? "Creating…" : "Create employee"}
+          <div className="flex items-center gap-2">
+            <ImportUsersDialog onImported={invalidate} />
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                  New employee
                 </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create employee account</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={create} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Full name</Label>
+                    <Input
+                      value={form.fullName}
+                      onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                      required
+                      maxLength={120}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Company email</Label>
+                    <Input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      required
+                      maxLength={255}
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Role</Label>
+                      <Select
+                        value={form.role}
+                        onValueChange={(v) => setForm({ ...form, role: v as AppRole })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.entries(ROLE_LABELS) as [AppRole, string][]).map(([v, l]) => (
+                            <SelectItem key={v} value={v}>
+                              {l}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Center</Label>
+                      <Select
+                        value={form.centerId}
+                        onValueChange={(v) => setForm({ ...form, centerId: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select center" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {centers.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Designation</Label>
+                    <Input
+                      value={form.designation}
+                      onChange={(e) => setForm({ ...form, designation: e.target.value })}
+                      maxLength={120}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={saving}>
+                    {saving ? "Creating…" : "Create employee"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         }
       />
 

@@ -6,6 +6,7 @@ import { ROLE_LABELS, type AppRole } from "@/lib/auth-helpers";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { StatusPill } from "@/components/admin/status-pill";
 import { DeleteUserDialog } from "@/components/admin/delete-user-dialog";
+import { downloadCertificatePdf } from "@/lib/certificate-pdf";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -26,7 +27,7 @@ import {
   formatLocation,
   formatActionLabel,
 } from "@/lib/activity-format";
-import { ArrowLeft, ScrollText, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, ScrollText, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/users/$userId")({
   component: UserProfilePage,
@@ -43,7 +44,7 @@ function UserProfilePage() {
     }),
   );
 
-  const { employee, roles, isOnline, lastLogin, sessions, activityLog } = data;
+  const { employee, roles, isOnline, lastLogin, sessions, activityLog, certificates } = data;
   const centerName = (employee as { centers?: { name: string } | null }).centers?.name ?? "—";
   const orgName =
     (employee as { organizations?: { name: string } | null }).organizations?.name ?? "—";
@@ -108,6 +109,7 @@ function UserProfilePage() {
           <TabsTrigger value="registration">Registration Details</TabsTrigger>
           <TabsTrigger value="logins">Login History</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
+          <TabsTrigger value="certificates">Certificates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="registration" className="mt-4">
@@ -261,6 +263,50 @@ function UserProfilePage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="certificates" className="mt-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {certificates.map((c) => {
+              const courseTitle = (c as { courses?: { title?: string } | null }).courses?.title;
+              return (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-card"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{courseTitle ?? "Course"}</p>
+                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">{c.cert_code}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Issued {new Date(c.issued_at).toLocaleDateString()}
+                      {c.score_percent != null ? ` · ${c.score_percent}%` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      downloadCertificatePdf({
+                        learnerName: employee.full_name,
+                        courseTitle: courseTitle ?? "Course",
+                        certCode: c.cert_code,
+                        issuedAt: c.issued_at,
+                        centerName: centerName !== "—" ? centerName : null,
+                        scorePercent: c.score_percent,
+                      })
+                    }
+                  >
+                    <Download className="mr-1.5 h-3.5 w-3.5" /> PDF
+                  </Button>
+                </div>
+              );
+            })}
+            {certificates.length === 0 && (
+              <div className="col-span-2 rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                No certificates earned yet.
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>

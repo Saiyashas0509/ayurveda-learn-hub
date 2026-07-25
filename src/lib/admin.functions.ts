@@ -3,9 +3,37 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { ADMIN_ONLY_ROLES, type AppRole } from "@/lib/auth-helpers";
+import {
+  ADMIN_ONLY_ROLES,
+  PLATFORM_WIDE_ROLES,
+  ORG_SCOPED_ROLES,
+  type AppRole,
+} from "@/lib/auth-helpers";
 import { getSiteOrigin } from "@/lib/site-origin";
 import { pairLoginSessions, type JsonMetadata } from "@/lib/login-sessions";
+
+// Every role an admin can directly assign — kept as one list so the "New
+// employee" form, CSV bulk import, and the role filter all agree on what's
+// valid. Previously createEmployeeUser/setUserRole only accepted 8 of the 15
+// roles even though their own dropdowns offered all 15, so picking e.g.
+// "Doctor" or "Student" there always failed server-side.
+const ASSIGNABLE_ROLE_ENUM = [
+  "super_admin",
+  "hr_admin",
+  "regional_manager",
+  "center_head_doctor",
+  "front_office",
+  "therapist",
+  "trainer",
+  "auditor",
+  "student",
+  "doctor",
+  "franchise_owner",
+  "corporate_employee",
+  "hospital_staff",
+  "faculty",
+  "org_admin",
+] as const satisfies readonly AppRole[];
 
 async function assertAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -48,16 +76,7 @@ export const createEmployeeUser = createServerFn({ method: "POST" })
         .object({
           email: z.string().trim().toLowerCase().email().max(255),
           fullName: z.string().trim().min(2).max(120),
-          role: z.enum([
-            "super_admin",
-            "hr_admin",
-            "regional_manager",
-            "center_head_doctor",
-            "front_office",
-            "therapist",
-            "trainer",
-            "auditor",
-          ]),
+          role: z.enum(ASSIGNABLE_ROLE_ENUM),
           centerId: z.string().uuid().nullable().optional(),
           designation: z.string().max(120).optional(),
           employeeCode: z.string().max(40).optional(),
@@ -102,6 +121,111 @@ export const createEmployeeUser = createServerFn({ method: "POST" })
     return { ok: true, userId };
   });
 
+// Bulk version of createEmployeeUser for CSV import. Processes rows
+// sequentially and keeps going past individual failures (bad role, unknown
+// center, duplicate email) so one bad row in a 100-row file doesn't block the
+// other 99 — each row's outcome is reported back for the admin to review.
+export const bulkCreateEmployeeUsers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (data: {
+      rows: {
+        email: string;
+        fullName: string;
+        role: string;
+        centerName?: string;
+        designation?: string;
+        employeeCode?: string;
+      }[];
+    }) =>
+      z
+        .object({
+          rows: z
+            .array(
+              z.object({
+                email: z.string().trim().toLowerCase().max(255),
+                fullName: z.string().trim().max(120),
+                role: z.string().trim().toLowerCase(),
+                centerName: z.string().trim().max(120).optional(),
+                designation: z.string().trim().max(120).optional(),
+                employeeCode: z.string().trim().max(40).optional(),
+              }),
+            )
+            .min(1)
+            .max(200),
+        })
+        .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: centers } = await supabaseAdmin.from("centers").select("id, name");
+    const centerByName = new Map(
+      (centers ?? []).map((c) => [c.name.trim().toLowerCase(), c.id as string]),
+    );
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const results: { email: string; ok: boolean; error?: string }[] = [];
+
+    for (const row of data.rows) {
+      try {
+        if (!row.email || !EMAIL_RE.test(row.email)) throw new Error("Invalid email");
+        if (!row.fullName || row.fullName.length < 2) throw new Error("Missing full name");
+        if (!(ASSIGNABLE_ROLE_ENUM as readonly string[]).includes(row.role)) {
+          throw new Error(`Unknown role "${row.role}"`);
+        }
+        const role = row.role as AppRole;
+
+        let centerId: string | null = null;
+        if (row.centerName) {
+          const match = centerByName.get(row.centerName.trim().toLowerCase());
+          if (!match) throw new Error(`Unknown center "${row.centerName}"`);
+          centerId = match;
+        }
+
+        const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+          email: row.email,
+          email_confirm: true,
+          user_metadata: { full_name: row.fullName },
+        });
+        if (error) throw new Error(error.message);
+        const userId = created.user!.id;
+
+        await supabaseAdmin.from("employees").insert({
+          id: userId,
+          email: row.email,
+          full_name: row.fullName,
+          center_id: centerId,
+          designation: row.designation || null,
+          employee_code: row.employeeCode || null,
+          status: "active",
+          onboarding_completed_at: new Date().toISOString(),
+        });
+        await supabaseAdmin.from("user_roles").insert({ user_id: userId, role });
+        if (isAdminRole(role)) {
+          await sendAdminPasswordSetupEmail(row.email);
+        }
+        results.push({ email: row.email, ok: true });
+      } catch (err) {
+        results.push({
+          email: row.email,
+          ok: false,
+          error: err instanceof Error ? err.message : "Failed",
+        });
+      }
+    }
+
+    const succeeded = results.filter((r) => r.ok).length;
+    await supabaseAdmin.from("audit_logs").insert({
+      actor_id: context.userId,
+      action: "users_bulk_imported",
+      metadata: { total: data.rows.length, succeeded, failed: data.rows.length - succeeded },
+    });
+
+    return { results, succeeded, failed: data.rows.length - succeeded };
+  });
+
 export const setUserStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { userId: string; status: "active" | "disabled" }) =>
@@ -130,16 +254,7 @@ export const setUserRole = createServerFn({ method: "POST" })
     z
       .object({
         userId: z.string().uuid(),
-        role: z.enum([
-          "super_admin",
-          "hr_admin",
-          "regional_manager",
-          "center_head_doctor",
-          "front_office",
-          "therapist",
-          "trainer",
-          "auditor",
-        ]),
+        role: z.enum(ASSIGNABLE_ROLE_ENUM),
       })
       .parse(data),
   )
@@ -241,65 +356,181 @@ export const publishAnnouncement = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Roles that see the full, unscoped platform overview. Broader than
+// assertAdmin's set (which gates mutations like creating/deleting users) —
+// auditors need full read visibility for their job but shouldn't get those
+// write powers, so this is intentionally a separate, read-only allowance.
+const OVERVIEW_PLATFORM_ROLES = new Set([...PLATFORM_WIDE_ROLES, "auditor"]);
+const OVERVIEW_ORG_SCOPED_ROLES = new Set(ORG_SCOPED_ROLES);
+
 export const getAdminOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const [{ data: roleRows }, { data: employee }] = await Promise.all([
+      supabaseAdmin.from("user_roles").select("role").eq("user_id", context.userId),
+      supabaseAdmin
+        .from("employees")
+        .select("organization_id,organizations(name)")
+        .eq("id", context.userId)
+        .maybeSingle(),
+    ]);
+    const roleList = (roleRows ?? []).map((r) => r.role);
+    const isPlatformWide = roleList.some((r) => OVERVIEW_PLATFORM_ROLES.has(r));
+    const isOrgScoped = roleList.some((r) => OVERVIEW_ORG_SCOPED_ROLES.has(r));
+    if (!isPlatformWide && !isOrgScoped) {
+      throw new Error("Forbidden: admin role required");
+    }
+
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
     const now = new Date().toISOString();
-    const [
-      employees,
-      activeEmployees,
-      disabledEmployees,
-      newThisWeek,
-      courses,
-      attempts,
-      certs,
-      pendingSubmissions,
-      gradedSubmissions,
-      upcomingLive,
-      logs,
-    ] = await Promise.all([
-      supabaseAdmin.from("employees").select("*", { count: "exact", head: true }),
-      supabaseAdmin
-        .from("employees")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "active"),
-      supabaseAdmin
-        .from("employees")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "disabled"),
-      supabaseAdmin
-        .from("employees")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", weekAgo),
-      supabaseAdmin.from("courses").select("*", { count: "exact", head: true }),
-      supabaseAdmin.from("quiz_attempts").select("*", { count: "exact", head: true }),
-      supabaseAdmin.from("certificates").select("*", { count: "exact", head: true }),
-      supabaseAdmin
-        .from("assignment_submissions")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "submitted"),
-      supabaseAdmin
-        .from("assignment_submissions")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "graded"),
-      supabaseAdmin
-        .from("live_classes")
-        .select("*", { count: "exact", head: true })
-        .gte("starts_at", now),
-      supabaseAdmin
-        .from("audit_logs")
-        .select("id,actor_email,action,created_at,target,metadata")
-        .order("created_at", { ascending: false })
-        .limit(20),
-    ]);
+    const orgId = employee?.organization_id ?? null;
+    const orgName = (employee as { organizations?: { name: string } | null } | null)?.organizations
+      ?.name;
+
+    if (isPlatformWide) {
+      const [
+        employees,
+        activeEmployees,
+        disabledEmployees,
+        newThisWeek,
+        courses,
+        attempts,
+        certs,
+        pendingSubmissions,
+        gradedSubmissions,
+        upcomingLive,
+        logs,
+      ] = await Promise.all([
+        supabaseAdmin.from("employees").select("*", { count: "exact", head: true }),
+        supabaseAdmin
+          .from("employees")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "active"),
+        supabaseAdmin
+          .from("employees")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "disabled"),
+        supabaseAdmin
+          .from("employees")
+          .select("*", { count: "exact", head: true })
+          .gte("created_at", weekAgo),
+        supabaseAdmin.from("courses").select("*", { count: "exact", head: true }),
+        supabaseAdmin.from("quiz_attempts").select("*", { count: "exact", head: true }),
+        supabaseAdmin.from("certificates").select("*", { count: "exact", head: true }),
+        supabaseAdmin
+          .from("assignment_submissions")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "submitted"),
+        supabaseAdmin
+          .from("assignment_submissions")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "graded"),
+        supabaseAdmin
+          .from("live_classes")
+          .select("*", { count: "exact", head: true })
+          .gte("starts_at", now),
+        supabaseAdmin
+          .from("audit_logs")
+          .select("id,actor_email,action,created_at,target,metadata")
+          .order("created_at", { ascending: false })
+          .limit(20),
+      ]);
+      return {
+        scope: "platform" as const,
+        orgName: null,
+        employees: employees.count ?? 0,
+        activeEmployees: activeEmployees.count ?? 0,
+        disabledEmployees: disabledEmployees.count ?? 0,
+        newThisWeek: newThisWeek.count ?? 0,
+        courses: courses.count ?? 0,
+        attempts: attempts.count ?? 0,
+        certificates: certs.count ?? 0,
+        pendingSubmissions: pendingSubmissions.count ?? 0,
+        gradedSubmissions: gradedSubmissions.count ?? 0,
+        upcomingLiveClasses: upcomingLive.count ?? 0,
+        recentLogs: logs.data ?? [],
+      };
+    }
+
+    // Org-scoped: regional_manager/center_head_doctor/org_admin/franchise_owner/
+    // doctor/faculty/trainer only see their own organization's numbers.
+    if (!orgId) {
+      return {
+        scope: "organization" as const,
+        orgName: orgName ?? null,
+        employees: 0,
+        activeEmployees: 0,
+        disabledEmployees: 0,
+        newThisWeek: 0,
+        courses: 0,
+        attempts: 0,
+        certificates: 0,
+        pendingSubmissions: 0,
+        gradedSubmissions: 0,
+        upcomingLiveClasses: 0,
+        recentLogs: [],
+      };
+    }
+
+    const { data: orgEmployeeRows } = await supabaseAdmin
+      .from("employees")
+      .select("id,status,created_at")
+      .eq("organization_id", orgId);
+    const orgEmployees = orgEmployeeRows ?? [];
+    const orgEmployeeIds = orgEmployees.map((e) => e.id);
+
+    const [courses, attempts, certs, pendingSubmissions, gradedSubmissions, upcomingLive, logs] =
+      await Promise.all([
+        supabaseAdmin.from("courses").select("*", { count: "exact", head: true }),
+        orgEmployeeIds.length
+          ? supabaseAdmin
+              .from("quiz_attempts")
+              .select("*", { count: "exact", head: true })
+              .in("user_id", orgEmployeeIds)
+          : Promise.resolve({ count: 0 }),
+        orgEmployeeIds.length
+          ? supabaseAdmin
+              .from("certificates")
+              .select("*", { count: "exact", head: true })
+              .in("user_id", orgEmployeeIds)
+          : Promise.resolve({ count: 0 }),
+        orgEmployeeIds.length
+          ? supabaseAdmin
+              .from("assignment_submissions")
+              .select("*", { count: "exact", head: true })
+              .eq("status", "submitted")
+              .in("user_id", orgEmployeeIds)
+          : Promise.resolve({ count: 0 }),
+        orgEmployeeIds.length
+          ? supabaseAdmin
+              .from("assignment_submissions")
+              .select("*", { count: "exact", head: true })
+              .eq("status", "graded")
+              .in("user_id", orgEmployeeIds)
+          : Promise.resolve({ count: 0 }),
+        supabaseAdmin
+          .from("live_classes")
+          .select("*", { count: "exact", head: true })
+          .gte("starts_at", now),
+        orgEmployeeIds.length
+          ? supabaseAdmin
+              .from("audit_logs")
+              .select("id,actor_email,action,created_at,target,metadata")
+              .in("actor_id", orgEmployeeIds)
+              .order("created_at", { ascending: false })
+              .limit(20)
+          : Promise.resolve({ data: [] }),
+      ]);
+
     return {
-      employees: employees.count ?? 0,
-      activeEmployees: activeEmployees.count ?? 0,
-      disabledEmployees: disabledEmployees.count ?? 0,
-      newThisWeek: newThisWeek.count ?? 0,
+      scope: "organization" as const,
+      orgName: orgName ?? null,
+      employees: orgEmployees.length,
+      activeEmployees: orgEmployees.filter((e) => e.status === "active").length,
+      disabledEmployees: orgEmployees.filter((e) => e.status === "disabled").length,
+      newThisWeek: orgEmployees.filter((e) => e.created_at >= weekAgo).length,
       courses: courses.count ?? 0,
       attempts: attempts.count ?? 0,
       certificates: certs.count ?? 0,
@@ -309,28 +540,6 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       recentLogs: logs.data ?? [],
     };
   });
-
-// Every role that can appear on an employee — used to validate the Users page's
-// role filter. Distinct from the narrower set setUserRole/createEmployeeUser
-// accept, which is about which roles an admin can directly assign (self-signup
-// roles like student/doctor are granted through onboarding, not this form).
-const EMPLOYEE_ROLE_ENUM = [
-  "super_admin",
-  "hr_admin",
-  "regional_manager",
-  "center_head_doctor",
-  "front_office",
-  "therapist",
-  "trainer",
-  "auditor",
-  "student",
-  "doctor",
-  "franchise_owner",
-  "corporate_employee",
-  "hospital_staff",
-  "faculty",
-  "org_admin",
-] as const satisfies readonly AppRole[];
 
 export const listEmployees = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -349,7 +558,7 @@ export const listEmployees = createServerFn({ method: "GET" })
           pageSize: z.number().int().min(1).max(100).default(20),
           search: z.string().trim().max(200).optional(),
           status: z.enum(["active", "disabled", "all"]).default("all"),
-          role: z.enum([...EMPLOYEE_ROLE_ENUM, "all"]).default("all"),
+          role: z.enum([...ASSIGNABLE_ROLE_ENUM, "all"]).default("all"),
           centerId: z.string().uuid().optional(),
         })
         .parse(data ?? {}),
@@ -519,6 +728,15 @@ export const getUserActivityProfile = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(300);
 
+    // certificates.user_id references auth.users, not employees — no FK for
+    // PostgREST to embed courses(title) through employees, but a direct
+    // certificates -> courses embed works fine since both are real FKs.
+    const { data: certificates } = await supabaseAdmin
+      .from("certificates")
+      .select("id,cert_code,issued_at,score_percent,courses(title)")
+      .eq("user_id", data.userId)
+      .order("issued_at", { ascending: false });
+
     return {
       employee,
       roles: (roles ?? []).map((r) => r.role),
@@ -529,5 +747,6 @@ export const getUserActivityProfile = createServerFn({ method: "GET" })
         ...a,
         metadata: a.metadata as Record<string, JsonMetadata> | null,
       })),
+      certificates: certificates ?? [],
     };
   });

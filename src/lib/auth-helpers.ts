@@ -58,6 +58,23 @@ export const SELF_SIGNUP_ROLES: AppRole[] = [
   "corporate_employee",
 ];
 
+// Roles whose dashboards show org/team-level stats (org members, org
+// completions, pending reviews) rather than just personal learning progress
+// or full platform-wide numbers — see roleViews.ts's orgAdminGroup/
+// platformAdminGroup split. Shared between learning.functions.ts (personal
+// "My Dashboard") and admin.functions.ts (the /admin overview page), so both
+// scope data the same way for the same roles.
+export const PLATFORM_WIDE_ROLES: AppRole[] = ["super_admin", "hr_admin"];
+export const ORG_SCOPED_ROLES: AppRole[] = [
+  "org_admin",
+  "franchise_owner",
+  "regional_manager",
+  "center_head_doctor",
+  "doctor",
+  "faculty",
+  "trainer",
+];
+
 export const LEARNING_INTERESTS = [
   "Ayurveda Basics",
   "Panchakarma",

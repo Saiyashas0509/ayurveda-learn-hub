@@ -29,7 +29,11 @@ function AdminOverview() {
     <div className="space-y-6">
       <AdminHeader
         title="Overview"
-        description="Platform-wide activity across employees, courses, and live operations."
+        description={
+          data.scope === "platform"
+            ? "Platform-wide activity across employees, courses, and live operations."
+            : `Activity for ${data.orgName ?? "your organization"} — employees, courses, and live operations.`
+        }
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

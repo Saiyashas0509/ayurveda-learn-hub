@@ -3,19 +3,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { logAudit } from "@/lib/audit";
+import { PLATFORM_WIDE_ROLES, ORG_SCOPED_ROLES } from "@/lib/auth-helpers";
 
-// Roles whose dashboard shows org/team-level stats (orgMembers, orgCompletions,
-// pendingReviews) rather than just personal learning progress — see roleViews.ts.
-const PLATFORM_WIDE_ROLES = new Set(["super_admin", "hr_admin"]);
-const ORG_SCOPED_ROLES = new Set([
-  "org_admin",
-  "franchise_owner",
-  "regional_manager",
-  "center_head_doctor",
-  "doctor",
-  "faculty",
-  "trainer",
-]);
+const PLATFORM_WIDE_ROLE_SET = new Set(PLATFORM_WIDE_ROLES);
+const ORG_SCOPED_ROLE_SET = new Set(ORG_SCOPED_ROLES);
 const REVIEWER_ROLES = new Set(["doctor", "faculty", "trainer"]);
 
 export const getMyDashboard = createServerFn({ method: "GET" })
@@ -56,8 +47,8 @@ export const getMyDashboard = createServerFn({ method: "GET" })
     const pendingCount = (progress.data ?? []).length - completedLessonIds.size;
 
     const roleList = (roles.data ?? []).map((r) => r.role);
-    const isPlatformWide = roleList.some((r) => PLATFORM_WIDE_ROLES.has(r));
-    const isOrgScoped = isPlatformWide || roleList.some((r) => ORG_SCOPED_ROLES.has(r));
+    const isPlatformWide = roleList.some((r) => PLATFORM_WIDE_ROLE_SET.has(r));
+    const isOrgScoped = isPlatformWide || roleList.some((r) => ORG_SCOPED_ROLE_SET.has(r));
     const orgId = employee.data?.organization_id ?? null;
     const monthStart = new Date();
     monthStart.setDate(1);
