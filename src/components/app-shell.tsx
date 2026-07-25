@@ -12,6 +12,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { Tour } from "@/components/tour/tour";
 import { EMPLOYEE_TOUR_STEPS, ADMIN_TOUR_STEPS } from "@/config/tourSteps";
 import { hasFunctionalConsent } from "@/lib/cookie-consent";
+import { AiAssistantWidget } from "@/components/ai-assistant-widget";
 
 // The admin tour's steps target the full platform-admin nav (Users, Organizations,
 // Course Builder, Audit Logs). Rather than hardcode which roles have that full
@@ -227,6 +228,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           onDone={dismissTour}
         />
       )}
+
+      <AiAssistantWidget />
     </div>
   );
 }

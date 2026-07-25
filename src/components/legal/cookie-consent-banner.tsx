@@ -14,6 +14,10 @@ export function CookieConsentBanner() {
   async function choose(choice: ConsentChoice) {
     setStoredConsent(choice);
     setVisible(false);
+    // Lets other fixed-to-the-bottom UI (e.g. the AI assistant widget) that
+    // only checked consent once on mount know it's now safe to drop back
+    // down, without needing a shared state provider for one flag.
+    window.dispatchEvent(new Event("cookie-consent-changed"));
     try {
       const { recordCookieConsent } = await import("@/lib/auth.functions");
       await recordCookieConsent({ data: { choice } });

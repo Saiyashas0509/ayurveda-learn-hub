@@ -75,8 +75,10 @@ import {
   Save,
   StickyNote,
   Captions,
+  Mic,
 } from "lucide-react";
 import { toast } from "sonner";
+import { transcribeLessonVideo } from "@/lib/transcription.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/courses/$courseId")({
   component: CourseBuilder,
@@ -627,6 +629,7 @@ function LessonEditor({
   const del = useServerFn(deleteLesson);
   const createQz = useServerFn(createQuizInline);
   const attachQz = useServerFn(attachQuizToLesson);
+  const transcribeVideo = useServerFn(transcribeLessonVideo);
 
   const [title, setTitle] = useState(lesson.title);
   const [desc, setDesc] = useState(lesson.description ?? "");
@@ -643,6 +646,7 @@ function LessonEditor({
   );
   const [keyNotes, setKeyNotes] = useState(lesson.key_notes ?? "");
   const [transcript, setTranscript] = useState(lesson.transcript ?? "");
+  const [transcribing, setTranscribing] = useState(false);
   const [videoProgress, setVideoProgress] = useState<number | null>(null);
   const [uploadingFile, setUploadingFile] = useState<{ name: string; sizeMb: number } | null>(null);
   const [resProgress, setResProgress] = useState<number | null>(null);
@@ -728,6 +732,23 @@ function LessonEditor({
     } finally {
       setVideoProgress(null);
       setUploadingFile(null);
+    }
+  };
+
+  const runTranscription = async () => {
+    if (!videoInput) {
+      toast.error("Upload a video first");
+      return;
+    }
+    setTranscribing(true);
+    try {
+      const res = await transcribeVideo({ data: { lessonId: lesson.id } });
+      setTranscript(res.transcript);
+      toast.success("Transcript generated — review it below, then Save.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Transcription failed");
+    } finally {
+      setTranscribing(false);
     }
   };
 
@@ -865,12 +886,25 @@ function LessonEditor({
           </div>
 
           <div>
-            <Label className="flex items-center gap-1">
-              <Captions className="h-4 w-4" /> Transcript
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1">
+                <Captions className="h-4 w-4" /> Transcript
+              </Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={transcribing || !videoInput}
+                onClick={runTranscription}
+              >
+                <Mic className="mr-1.5 h-3.5 w-3.5" />
+                {transcribing ? "Transcribing…" : "Transcribe automatically"}
+              </Button>
+            </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Full text of the video's narration — helps learners who prefer reading and makes the
-              lesson searchable.
+              lesson searchable. Automatic transcription works for videos under 25MB; for larger
+              ones, paste or type the transcript below.
             </p>
             <Textarea
               className="mt-2"
