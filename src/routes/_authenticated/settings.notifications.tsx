@@ -8,13 +8,21 @@ import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/_authenticated/settings/notifications")({
   component: Page,
-  errorComponent: ({ error }) => <div role="alert" className="p-8 text-sm text-destructive">{error.message}</div>,
+  errorComponent: ({ error }) => (
+    <div role="alert" className="p-8 text-sm text-destructive">
+      {error.message}
+    </div>
+  ),
   notFoundComponent: () => <div className="p-8">Not found.</div>,
 });
 
 const LABELS: Record<string, string> = {
-  assignment: "Assignments", result: "Results & grading", live_class: "Live classes",
-  announcement: "Announcements", discussion: "Discussion replies", system: "System messages",
+  assignment: "Assignments",
+  result: "Results & grading",
+  live_class: "Live classes",
+  announcement: "Announcements",
+  discussion: "Discussion replies",
+  system: "System messages",
 };
 
 function Page() {
@@ -22,10 +30,14 @@ function Page() {
   const updateFn = useServerFn(updatePreferences);
   const { data, refetch } = useQuery({ queryKey: ["prefs"], queryFn: () => getFn() });
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
-  useEffect(() => { if (data?.in_app) setPrefs(data.in_app as Record<string, boolean>); }, [data]);
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  useEffect(() => {
+    if (data?.in_app) setPrefs(data.in_app as Record<string, boolean>);
+    if (data) setEmailEnabled(!!data.email_enabled);
+  }, [data]);
 
   const save = useMutation({
-    mutationFn: () => updateFn({ data: { inApp: prefs, emailEnabled: false, smsEnabled: false } }),
+    mutationFn: () => updateFn({ data: { inApp: prefs, emailEnabled, smsEnabled: false } }),
     onSuccess: () => refetch(),
   });
 
@@ -43,7 +55,10 @@ function Page() {
               <p className="text-sm font-medium">{LABELS[t]}</p>
               <p className="text-xs text-muted-foreground">In-app bell + full page</p>
             </div>
-            <Switch checked={prefs[t] ?? true} onCheckedChange={(v) => setPrefs({ ...prefs, [t]: v })} />
+            <Switch
+              checked={prefs[t] ?? true}
+              onCheckedChange={(v) => setPrefs({ ...prefs, [t]: v })}
+            />
           </div>
         ))}
       </div>
@@ -53,20 +68,24 @@ function Page() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm">Email notifications</p>
-            <p className="text-xs text-muted-foreground">Requires domain verification</p>
+            <p className="text-xs text-muted-foreground">
+              Sends an email for the types enabled above (assignments, grading, announcements, etc.)
+            </p>
           </div>
-          <Switch disabled />
+          <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
         </div>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm">SMS notifications</p>
-            <p className="text-xs text-muted-foreground">Requires domain verification</p>
+            <p className="text-xs text-muted-foreground">Not available yet</p>
           </div>
           <Switch disabled />
         </div>
       </div>
 
-      <Button onClick={() => save.mutate()} disabled={save.isPending}>Save preferences</Button>
+      <Button onClick={() => save.mutate()} disabled={save.isPending}>
+        Save preferences
+      </Button>
     </div>
   );
 }

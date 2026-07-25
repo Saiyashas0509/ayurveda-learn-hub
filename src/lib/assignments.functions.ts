@@ -2,6 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { notifyUser } from "@/lib/notify";
 
 const FACULTY_ROLES = ["super_admin", "hr_admin", "trainer", "faculty"] as const;
 
@@ -200,7 +201,7 @@ export const gradeSubmission = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (!(await isFaculty(context.userId))) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
+    const { data: updated, error } = await supabaseAdmin
       .from("assignment_submissions")
       .update({
         grade: data.grade,
@@ -209,7 +210,9 @@ export const gradeSubmission = createServerFn({ method: "POST" })
         graded_at: new Date().toISOString(),
         status: "graded",
       })
-      .eq("id", data.submissionId);
+      .eq("id", data.submissionId)
+      .select("user_id,assignment_id,assignments(title)")
+      .single();
     if (error) throw new Error(error.message);
     await supabaseAdmin.from("audit_logs").insert({
       actor_id: context.userId,
@@ -217,5 +220,18 @@ export const gradeSubmission = createServerFn({ method: "POST" })
       target: data.submissionId,
       metadata: { grade: data.grade },
     });
+
+    const assignmentTitle =
+      (updated as unknown as { assignments?: { title?: string } | null }).assignments?.title ??
+      "your assignment";
+    await notifyUser(supabaseAdmin, {
+      userId: updated.user_id,
+      type: "result",
+      title: "Assignment graded",
+      body: `"${assignmentTitle}" has been graded: ${data.grade}${data.feedback ? ` — ${data.feedback}` : ""}`,
+      link: "/assignments",
+      emailCtaLabel: "View feedback",
+    });
+
     return { ok: true };
   });

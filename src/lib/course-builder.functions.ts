@@ -637,6 +637,25 @@ export const upsertAssignment = createServerFn({ method: "POST" })
       target: row.id,
       metadata: { title: data.title, courseId: data.course_id },
     });
+
+    // Only notify for assignments added to an already-published course —
+    // nothing to tell learners about while it's still a draft.
+    const { data: course } = await supabaseAdmin
+      .from("courses")
+      .select("title,is_published")
+      .eq("id", data.course_id)
+      .maybeSingle();
+    if (course?.is_published) {
+      const { notifyAllActiveEmployees } = await import("@/lib/notify");
+      await notifyAllActiveEmployees(supabaseAdmin, {
+        type: "assignment",
+        title: "New assignment posted",
+        body: `"${data.title}" was added to ${course.title}.`,
+        link: "/assignments",
+        emailCtaLabel: "View assignment",
+      });
+    }
+
     return { id: row.id };
   });
 

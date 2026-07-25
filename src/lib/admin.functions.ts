@@ -353,6 +353,14 @@ export const publishAnnouncement = createServerFn({ method: "POST" })
       action: "announcement_published",
       metadata: { title: data.title },
     });
+    const { notifyAllActiveEmployees } = await import("@/lib/notify");
+    await notifyAllActiveEmployees(supabaseAdmin, {
+      type: "announcement",
+      title: data.title,
+      body: data.body,
+      link: "/dashboard",
+      emailCtaLabel: "View announcement",
+    });
     return { ok: true };
   });
 
