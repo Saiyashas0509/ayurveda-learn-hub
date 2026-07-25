@@ -644,6 +644,7 @@ function LessonEditor({
   const [keyNotes, setKeyNotes] = useState(lesson.key_notes ?? "");
   const [transcript, setTranscript] = useState(lesson.transcript ?? "");
   const [videoProgress, setVideoProgress] = useState<number | null>(null);
+  const [uploadingFile, setUploadingFile] = useState<{ name: string; sizeMb: number } | null>(null);
   const [resProgress, setResProgress] = useState<number | null>(null);
   const [newQuizTitle, setNewQuizTitle] = useState("");
   const [videoDragOver, setVideoDragOver] = useState(false);
@@ -676,6 +677,19 @@ function LessonEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Large videos on a slow connection can take several minutes to upload —
+  // without this, closing the tab or navigating away mid-upload silently
+  // loses it with no warning.
+  useEffect(() => {
+    if (videoProgress === null) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [videoProgress]);
+
   const save = () =>
     update({
       data: {
@@ -701,6 +715,7 @@ function LessonEditor({
       return;
     }
     setVideoProgress(0);
+    setUploadingFile({ name: file.name, sizeMb: Math.round((file.size / 1024 / 1024) * 10) / 10 });
     try {
       const { url, durationSeconds } = await uploadVideoToHostinger(file, setVideoProgress);
       setVideoInput(filenameFromVideoUrl(url));
@@ -712,6 +727,7 @@ function LessonEditor({
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setVideoProgress(null);
+      setUploadingFile(null);
     }
   };
 
@@ -737,7 +753,16 @@ function LessonEditor({
   };
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
+    <Dialog
+      open
+      onOpenChange={(v) => {
+        if (!v && videoProgress !== null) {
+          toast.error("Please wait for the video upload to finish before closing.");
+          return;
+        }
+        if (!v) onClose();
+      }}
+    >
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit lesson</DialogTitle>
@@ -793,7 +818,18 @@ function LessonEditor({
               onChange={(e) => setVideoInput(e.target.value)}
               onBlur={(e) => detectDuration(e.target.value)}
             />
-            {videoProgress !== null && <Progress value={videoProgress} className="mt-2" />}
+            {videoProgress !== null && (
+              <div className="mt-2 space-y-1">
+                <Progress value={videoProgress} />
+                <p className="text-xs text-muted-foreground">
+                  Uploading
+                  {uploadingFile ? ` ${uploadingFile.name} (${uploadingFile.sizeMb} MB)` : ""}…{" "}
+                  {videoProgress}%
+                  {videoProgress < 100 &&
+                    " — large videos on a slower connection can take several minutes, keep this tab open."}
+                </p>
+              </div>
+            )}
             <div className="mt-2 flex items-center gap-2">
               <Label className="text-xs">Duration (min)</Label>
               {detectingDuration && (

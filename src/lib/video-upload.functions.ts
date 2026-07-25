@@ -44,7 +44,10 @@ export const requestVideoUpload = createServerFn({ method: "POST" })
     if (!secret) throw new Error("Video upload is not configured");
 
     const filename = `${Date.now()}-${sanitizeUploadFilename(data.filename)}`;
-    const { exp, sig } = await signUploadToken("upload", filename, secret);
+    // Chunked uploads of a large video over a slow connection can take a
+    // while cumulatively — give this token an hour instead of the default 10
+    // minutes so it doesn't expire mid-upload.
+    const { exp, sig } = await signUploadToken("upload", filename, secret, 3600);
     return { uploadUrl: VIDEO_UPLOAD_URL, filename, exp, sig };
   });
 
