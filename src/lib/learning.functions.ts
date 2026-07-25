@@ -12,15 +12,6 @@ const PLATFORM_WIDE_ROLE_SET = new Set(PLATFORM_WIDE_ROLES);
 const ORG_SCOPED_ROLE_SET = new Set(ORG_SCOPED_ROLES);
 const REVIEWER_ROLES = new Set(["doctor", "faculty", "trainer"]);
 
-// TEMPORARY: lesson_progress.skip_detected doesn't exist in the live DB yet
-// (pending migration 20260725160000_quiz_autogen_and_video_skip.sql) — every
-// place below that would normally select/write it is hardcoded to skip it
-// instead, search "TEMP-NO-SKIP-COLUMN" for each spot. Once that migration
-// has actually been run, restore skip_detected in each of those selects/
-// upserts and delete this note. Until then, completion is gated on
-// watched_seconds alone (still real enforcement, just missing the extra
-// backstop against direct devtools/API tampering with playback position).
-
 export const getMyDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -305,11 +296,11 @@ export const getLesson = createServerFn({ method: "GET" })
 
     const { data: progress } = await context.supabase
       .from("lesson_progress")
-      .select("watched_seconds,completed_at") // TEMP-NO-SKIP-COLUMN
+      .select("watched_seconds,skip_detected,completed_at")
       .eq("user_id", context.userId)
       .eq("lesson_id", data.lessonId)
       .maybeSingle();
-    const progressSkipDetected = false; // TEMP-NO-SKIP-COLUMN
+    const progressSkipDetected = progress?.skip_detected ?? false;
 
     // Never hand the real (Hostinger) video URL to the client — mint a
     // short-lived signed token for the proxy route instead. Reaching this
@@ -385,17 +376,16 @@ export const updateVideoProgress = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: existing } = await context.supabase
       .from("lesson_progress")
-      .select("watched_seconds") // TEMP-NO-SKIP-COLUMN
+      .select("watched_seconds,skip_detected")
       .eq("user_id", context.userId)
       .eq("lesson_id", data.lessonId)
       .maybeSingle();
-    // data.skipDetected is still received from the client and simply
-    // dropped here for now — TEMP-NO-SKIP-COLUMN.
     const { error } = await context.supabase.from("lesson_progress").upsert(
       {
         user_id: context.userId,
         lesson_id: data.lessonId,
         watched_seconds: Math.max(existing?.watched_seconds ?? 0, data.watchedSeconds),
+        skip_detected: (existing?.skip_detected ?? false) || data.skipDetected,
       },
       { onConflict: "user_id,lesson_id" },
     );
@@ -447,16 +437,15 @@ export const markLessonComplete = createServerFn({ method: "POST" })
     if (lesson?.video_url) {
       const { data: progress } = await context.supabase
         .from("lesson_progress")
-        .select("watched_seconds") // TEMP-NO-SKIP-COLUMN
+        .select("watched_seconds,skip_detected")
         .eq("user_id", context.userId)
         .eq("lesson_id", data.lessonId)
         .maybeSingle();
-      const skipDetected = false; // TEMP-NO-SKIP-COLUMN
       if (
         !isVideoWatchRequirementMet(
           lesson.duration_seconds,
           progress?.watched_seconds ?? 0,
-          skipDetected,
+          progress?.skip_detected ?? false,
         )
       ) {
         throw new Error(
@@ -508,16 +497,15 @@ export const startQuizAttempt = createServerFn({ method: "POST" })
       if (lesson?.video_url) {
         const { data: progress } = await supabaseAdmin
           .from("lesson_progress")
-          .select("watched_seconds") // TEMP-NO-SKIP-COLUMN
+          .select("watched_seconds,skip_detected")
           .eq("user_id", context.userId)
           .eq("lesson_id", quiz.lesson_id)
           .maybeSingle();
-        const skipDetected = false; // TEMP-NO-SKIP-COLUMN
         if (
           !isVideoWatchRequirementMet(
             lesson.duration_seconds,
             progress?.watched_seconds ?? 0,
-            skipDetected,
+            progress?.skip_detected ?? false,
           )
         ) {
           throw new Error(
