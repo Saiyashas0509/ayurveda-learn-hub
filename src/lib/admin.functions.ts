@@ -541,6 +541,138 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     };
   });
 
+// Groups ISO timestamps into weekly buckets ending "now", oldest first. Done
+// in JS rather than a SQL date_trunc/group-by because PostgREST doesn't
+// expose aggregate grouping — this codebase's established pattern (see
+// pairLoginSessions) is fetch-then-process for this kind of shaping.
+function bucketByWeek(isoDates: string[], weeks: number): { weekStart: string; count: number }[] {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const bucketStarts: number[] = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const d = new Date(startOfToday);
+    d.setDate(d.getDate() - i * 7);
+    bucketStarts.push(d.getTime());
+  }
+  const counts = new Array(weeks).fill(0) as number[];
+  for (const iso of isoDates) {
+    const t = new Date(iso).getTime();
+    for (let i = bucketStarts.length - 1; i >= 0; i--) {
+      if (t >= bucketStarts[i]) {
+        counts[i]++;
+        break;
+      }
+    }
+  }
+  return bucketStarts.map((t, i) => ({
+    weekStart: new Date(t).toISOString().slice(0, 10),
+    count: counts[i],
+  }));
+}
+
+// Trend data for the admin overview's charts: weekly signups/certificates
+// over the last 12 weeks, plus the most-completed courses in that window.
+// Same platform-vs-organization scoping as getAdminOverview.
+export const getAdminAnalytics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const [{ data: roleRows }, { data: employee }] = await Promise.all([
+      supabaseAdmin.from("user_roles").select("role").eq("user_id", context.userId),
+      supabaseAdmin
+        .from("employees")
+        .select("organization_id")
+        .eq("id", context.userId)
+        .maybeSingle(),
+    ]);
+    const roleList = (roleRows ?? []).map((r) => r.role);
+    const isPlatformWide = roleList.some((r) => OVERVIEW_PLATFORM_ROLES.has(r));
+    const isOrgScoped = roleList.some((r) => OVERVIEW_ORG_SCOPED_ROLES.has(r));
+    if (!isPlatformWide && !isOrgScoped) {
+      throw new Error("Forbidden: admin role required");
+    }
+
+    const WEEKS = 12;
+    const windowStart = new Date();
+    windowStart.setDate(windowStart.getDate() - WEEKS * 7);
+    const windowStartIso = windowStart.toISOString();
+
+    let scopedEmployeeIds: string[] = [];
+    if (!isPlatformWide) {
+      const orgId = employee?.organization_id ?? null;
+      if (!orgId) return { signups: [], certificates: [], topCourses: [] };
+      const { data: rows } = await supabaseAdmin
+        .from("employees")
+        .select("id")
+        .eq("organization_id", orgId);
+      scopedEmployeeIds = (rows ?? []).map((r) => r.id);
+      if (scopedEmployeeIds.length === 0) {
+        return { signups: [], certificates: [], topCourses: [] };
+      }
+    }
+
+    const [signupsRes, certsRes, progressRes] = await Promise.all([
+      isPlatformWide
+        ? supabaseAdmin.from("employees").select("created_at").gte("created_at", windowStartIso)
+        : supabaseAdmin
+            .from("employees")
+            .select("created_at")
+            .in("id", scopedEmployeeIds)
+            .gte("created_at", windowStartIso),
+      isPlatformWide
+        ? supabaseAdmin.from("certificates").select("issued_at").gte("issued_at", windowStartIso)
+        : supabaseAdmin
+            .from("certificates")
+            .select("issued_at")
+            .in("user_id", scopedEmployeeIds)
+            .gte("issued_at", windowStartIso),
+      (isPlatformWide
+        ? supabaseAdmin
+            .from("lesson_progress")
+            .select("completed_at,lessons(course_id,courses(title))")
+            .not("completed_at", "is", null)
+            .gte("completed_at", windowStartIso)
+        : supabaseAdmin
+            .from("lesson_progress")
+            .select("completed_at,lessons(course_id,courses(title))")
+            .not("completed_at", "is", null)
+            .gte("completed_at", windowStartIso)
+            .in("user_id", scopedEmployeeIds)) as unknown as Promise<{
+        data:
+          | {
+              completed_at: string;
+              lessons: { course_id: string; courses: { title: string } | null } | null;
+            }[]
+          | null;
+      }>,
+    ]);
+
+    const signups = bucketByWeek(
+      (signupsRes.data ?? []).map((r) => r.created_at),
+      WEEKS,
+    );
+    const certificates = bucketByWeek(
+      (certsRes.data ?? []).map((r) => r.issued_at),
+      WEEKS,
+    );
+
+    const courseCounts = new Map<string, { title: string; count: number }>();
+    for (const row of progressRes.data ?? []) {
+      const courseId = row.lessons?.course_id;
+      if (!courseId) continue;
+      const title = row.lessons?.courses?.title ?? "Untitled course";
+      const existing = courseCounts.get(courseId);
+      if (existing) existing.count += 1;
+      else courseCounts.set(courseId, { title, count: 1 });
+    }
+    const topCourses = Array.from(courseCounts.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
+    return { signups, certificates, topCourses };
+  });
+
 export const listEmployees = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(

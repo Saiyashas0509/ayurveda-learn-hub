@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { getAdminOverview } from "@/lib/admin.functions";
+import { getAdminOverview, getAdminAnalytics } from "@/lib/admin.functions";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { StatTile } from "@/components/admin/stat-tile";
+import { OverviewCharts } from "@/components/admin/overview-charts";
 import {
   Users,
   BookOpen,
@@ -21,8 +22,12 @@ export const Route = createFileRoute("/_authenticated/admin/")({
 
 function AdminOverview() {
   const fn = useServerFn(getAdminOverview);
+  const analyticsFn = useServerFn(getAdminAnalytics);
   const { data } = useSuspenseQuery(
     queryOptions({ queryKey: ["admin-overview"], queryFn: () => fn() }),
+  );
+  const { data: analytics } = useSuspenseQuery(
+    queryOptions({ queryKey: ["admin-analytics"], queryFn: () => analyticsFn() }),
   );
 
   return (
@@ -64,6 +69,12 @@ function AdminOverview() {
         <StatTile icon={Video} label="Upcoming live classes" value={data.upcomingLiveClasses} />
         <StatTile icon={Award} label="Certificates issued" value={data.certificates} />
       </div>
+
+      <OverviewCharts
+        signups={analytics.signups}
+        certificates={analytics.certificates}
+        topCourses={analytics.topCourses}
+      />
 
       <div className="rounded-xl border border-border bg-card shadow-card">
         <div className="border-b border-border px-5 py-3.5">
