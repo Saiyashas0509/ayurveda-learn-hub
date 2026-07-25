@@ -120,6 +120,42 @@ export const listCatalog = createServerFn({ method: "GET" })
     return { courses: courses ?? [] };
   });
 
+// Lesson.sort_order is only unique *within a module* (see reorderLessons in
+// course-builder.functions.ts), not across the whole course — so ordering
+// lessons by sort_order alone interleaves modules arbitrarily instead of
+// giving a real course-wide sequence. This resolves the true sequence:
+// modules by their own sort_order, lessons within each by their sort_order,
+// with any module-less lessons appended last by their own sort_order.
+// Used for sequential lesson unlocking (a lesson requires the previous one
+// in this sequence to be completed).
+async function orderedLessonIds(
+  supabase: { from: (table: string) => any }, // eslint-disable-line @typescript-eslint/no-explicit-any
+  courseId: string,
+): Promise<string[]> {
+  const [{ data: modules }, { data: lessons }] = await Promise.all([
+    supabase.from("course_modules").select("id,sort_order").eq("course_id", courseId),
+    supabase
+      .from("lessons")
+      .select("id,module_id,sort_order")
+      .eq("course_id", courseId)
+      .order("sort_order"),
+  ]);
+  const moduleOrder = new Map(
+    ((modules ?? []) as { id: string; sort_order: number }[])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((m, i) => [m.id, i]),
+  );
+  const rows = (lessons ?? []) as { id: string; module_id: string | null; sort_order: number }[];
+  const assigned = rows.filter((l) => l.module_id && moduleOrder.has(l.module_id));
+  const unassigned = rows.filter((l) => !l.module_id || !moduleOrder.has(l.module_id));
+  assigned.sort((a, b) => {
+    const mo = (moduleOrder.get(a.module_id!) ?? 0) - (moduleOrder.get(b.module_id!) ?? 0);
+    return mo !== 0 ? mo : a.sort_order - b.sort_order;
+  });
+  unassigned.sort((a, b) => a.sort_order - b.sort_order);
+  return [...assigned, ...unassigned].map((l) => l.id);
+}
+
 export const getCourse = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { slug: string }) =>
@@ -132,11 +168,13 @@ export const getCourse = createServerFn({ method: "GET" })
       .eq("slug", data.slug)
       .maybeSingle();
     if (!course) throw new Error("Course not found");
-    const { data: lessons } = await context.supabase
-      .from("lessons")
-      .select("id,title,sort_order,duration_seconds")
-      .eq("course_id", course.id)
-      .order("sort_order");
+    const [{ data: lessons }, order] = await Promise.all([
+      context.supabase
+        .from("lessons")
+        .select("id,title,sort_order,duration_seconds")
+        .eq("course_id", course.id),
+      orderedLessonIds(context.supabase, course.id),
+    ]);
     const { data: progress } = await context.supabase
       .from("lesson_progress")
       .select("lesson_id,completed_at")
@@ -148,15 +186,21 @@ export const getCourse = createServerFn({ method: "GET" })
       target: course.id,
       metadata: { title: course.title },
     });
+    const byId = new Map((lessons ?? []).map((l) => [l.id, l]));
+    const orderedLessons = order
+      .map((id) => byId.get(id))
+      .filter((l): l is NonNullable<typeof l> => !!l);
     return {
       course,
-      lessons: lessons ?? [],
+      lessons: orderedLessons,
       progress: (progress ?? []).reduce<Record<string, boolean>>((acc, p) => {
         acc[p.lesson_id] = !!p.completed_at;
         return acc;
       }, {}),
     };
   });
+
+const FACULTY_ROLE_SET = new Set(["super_admin", "hr_admin", "trainer", "faculty"]);
 
 export const getLesson = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -170,6 +214,40 @@ export const getLesson = createServerFn({ method: "GET" })
       .eq("id", data.lessonId)
       .maybeSingle();
     if (!lesson) throw new Error("Lesson not found");
+
+    // Sequential unlock: this lesson requires the one immediately before it
+    // in the course's true sequence (see orderedLessonIds) to be completed.
+    // Faculty/admin roles can review any lesson without doing this in order.
+    const { data: roleRows } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const isFaculty = (roleRows ?? []).some((r) => FACULTY_ROLE_SET.has(r.role));
+    if (!isFaculty) {
+      const order = await orderedLessonIds(context.supabase, lesson.course_id);
+      const position = order.indexOf(lesson.id);
+      if (position > 0) {
+        const previousId = order[position - 1];
+        const { data: prevProgress } = await context.supabase
+          .from("lesson_progress")
+          .select("completed_at")
+          .eq("user_id", context.userId)
+          .eq("lesson_id", previousId)
+          .maybeSingle();
+        if (!prevProgress?.completed_at) {
+          const course = lesson.courses as { id: string; title: string; slug: string } | null;
+          return {
+            lesson: null,
+            quiz: null,
+            locked: true,
+            courseSlug: course?.slug ?? null,
+            courseTitle: course?.title ?? null,
+            lessonTitle: lesson.title,
+          };
+        }
+      }
+    }
+
     const { data: quiz } = await context.supabase
       .from("quizzes")
       .select("id,title,pass_percent,time_limit_seconds")
@@ -198,7 +276,7 @@ export const getLesson = createServerFn({ method: "GET" })
       metadata: { title: lesson.title, courseId: lesson.course_id },
     });
 
-    return { lesson: { ...lesson, video_url: videoUrl }, quiz };
+    return { lesson: { ...lesson, video_url: videoUrl }, quiz, locked: false };
   });
 
 export const markLessonComplete = createServerFn({ method: "POST" })

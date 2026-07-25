@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { getCourse } from "@/lib/learning.functions";
-import { CheckCircle2, Circle, Clock, PlayCircle, MessagesSquare, Video } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Lock, PlayCircle, MessagesSquare, Video } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/courses/$slug")({
   component: CoursePage,
@@ -70,31 +70,53 @@ function CoursePage() {
         <ul className="divide-y divide-border">
           {data.lessons.map((l, i) => {
             const done = data.progress[l.id];
+            // Mirrors the server-side check in getLesson: a lesson needs the
+            // one before it in this (already course-ordered) list completed.
+            const locked = i > 0 && !data.progress[data.lessons[i - 1].id];
+            const content = (
+              <>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-xs font-semibold text-muted-foreground">
+                  {i + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className={`truncate text-sm font-medium ${locked ? "text-muted-foreground" : ""}`}
+                  >
+                    {l.title}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {locked
+                      ? "Complete the previous lesson to unlock"
+                      : `${Math.round((l.duration_seconds ?? 0) / 60)} min`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {locked ? (
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                  ) : done ? (
+                    <CheckCircle2 className="h-5 w-5 text-success" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  {!locked && <PlayCircle className="h-5 w-5 text-primary" />}
+                </div>
+              </>
+            );
             return (
               <li key={l.id}>
-                <Link
-                  to="/lessons/$lessonId"
-                  params={{ lessonId: l.id }}
-                  className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-accent/50"
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-xs font-semibold text-muted-foreground">
-                    {i + 1}
+                {locked ? (
+                  <div className="flex cursor-not-allowed items-center gap-4 px-5 py-4 opacity-60">
+                    {content}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{l.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {Math.round((l.duration_seconds ?? 0) / 60)} min
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {done ? (
-                      <CheckCircle2 className="h-5 w-5 text-success" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-muted-foreground" />
-                    )}
-                    <PlayCircle className="h-5 w-5 text-primary" />
-                  </div>
-                </Link>
+                ) : (
+                  <Link
+                    to="/lessons/$lessonId"
+                    params={{ lessonId: l.id }}
+                    className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-accent/50"
+                  >
+                    {content}
+                  </Link>
+                )}
               </li>
             );
           })}
