@@ -9,6 +9,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { signUploadToken } from "@/lib/upload-token";
+import { logAudit } from "@/lib/audit";
 
 const FACULTY_ROLES = ["super_admin", "hr_admin", "trainer", "faculty"] as const;
 
@@ -82,4 +83,51 @@ export const requestVideoDuration = createServerFn({ method: "POST" })
     const filename = sanitizeUploadFilename(data.filename);
     const { exp, sig } = await signUploadToken("duration", filename, secret);
     return { uploadUrl: VIDEO_UPLOAD_URL, filename, exp, sig };
+  });
+
+// Previously a failed upload left zero trace anywhere except the toast in
+// the uploader's own browser — diagnosing a real report meant asking them
+// to describe or screenshot an error that had already scrolled away. This
+// gives it a permanent record (visible on the Audit Logs page) with enough
+// detail — file size, how far it got, browser/OS — to actually tell a real
+// server/relay problem apart from one flaky connection, without waiting for
+// it to happen again in front of someone who can read devtools.
+export const reportUploadFailure = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (data: {
+      filename: string;
+      fileSizeBytes: number;
+      chunkIndex: number;
+      totalChunks: number;
+      percentComplete: number;
+      errorMessage: string;
+    }) =>
+      z
+        .object({
+          filename: z.string().max(255),
+          fileSizeBytes: z.number().int().min(0),
+          chunkIndex: z.number().int().min(0),
+          totalChunks: z.number().int().min(1),
+          percentComplete: z.number().min(0).max(100),
+          errorMessage: z.string().max(500),
+        })
+        .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: (context.claims as { email?: string }).email ?? null,
+      action: "video_upload_failed",
+      metadata: {
+        filename: data.filename,
+        fileSizeBytes: data.fileSizeBytes,
+        fileSizeMB: Math.round((data.fileSizeBytes / (1024 * 1024)) * 10) / 10,
+        chunkIndex: data.chunkIndex,
+        totalChunks: data.totalChunks,
+        percentComplete: data.percentComplete,
+        errorMessage: data.errorMessage,
+      },
+    });
+    return { ok: true };
   });

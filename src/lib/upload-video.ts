@@ -2,6 +2,7 @@ import {
   requestVideoDelete,
   requestVideoDuration,
   requestVideoUpload,
+  reportUploadFailure,
 } from "@/lib/video-upload.functions";
 
 export const VIDEO_BASE_URL = "https://videos.travancoreayurvedalearning.com/";
@@ -192,6 +193,18 @@ export async function uploadVideoToHostinger(
     } catch (err) {
       const pct = Math.round((uploadedBytes / file.size) * 100);
       const reason = err instanceof Error ? err.message : "unknown error";
+      // Best-effort — the report itself failing shouldn't hide the real
+      // error from the person trying to upload right now.
+      reportUploadFailure({
+        data: {
+          filename: file.name,
+          fileSizeBytes: file.size,
+          chunkIndex: i,
+          totalChunks,
+          percentComplete: pct,
+          errorMessage: reason,
+        },
+      }).catch(() => {});
       throw new Error(
         `Upload failed at ${pct}% after several retries (${reason}). This usually means the ` +
           "connection is too unstable for the remaining transfer — try again on a more stable " +
