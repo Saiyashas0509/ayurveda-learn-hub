@@ -169,3 +169,32 @@
 @utility ring-gold {
   box-shadow: var(--shadow-ring-gold);
 }
+
+/* Loading screen: a rocket launching past a stack of books. */
+@keyframes loader-rocket-fly {
+  0%, 100% { transform: translate(0, 0) rotate(-8deg); }
+  50% { transform: translate(2px, -10px) rotate(-4deg); }
+}
+@keyframes loader-flame {
+  0%, 100% { transform: scaleY(1) scaleX(1); opacity: 0.9; }
+  50% { transform: scaleY(1.35) scaleX(0.85); opacity: 1; }
+}
+@keyframes loader-spark {
+  0% { transform: translateY(0) scale(1); opacity: 0.9; }
+  100% { transform: translateY(22px) scale(0.3); opacity: 0; }
+}
+@keyframes loader-book-settle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(1px); }
+}
+@keyframes loader-dot {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .loader-rocket { animation: loader-rocket-fly 2.6s ease-in-out infinite; }
+  .loader-flame { animation: loader-flame 0.5s ease-in-out infinite; transform-origin: 50% 0%; }
+  .loader-spark { animation: loader-spark 1.1s ease-out infinite; }
+  .loader-books { animation: loader-book-settle 2.6s ease-in-out infinite; }
+  .loader-dot { animation: loader-dot 1.3s ease-in-out infinite; }
+}
