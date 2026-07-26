@@ -3,6 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { logAudit } from "@/lib/audit";
 
 async function assertAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -13,6 +14,10 @@ async function assertAdmin(userId: string) {
     .in("role", ["super_admin", "hr_admin"]);
   if (error) throw new Error(error.message);
   if (!data || data.length === 0) throw new Error("Forbidden: admin role required");
+}
+
+function actorEmail(context: { claims: unknown }): string | null {
+  return (context.claims as { email?: string }).email ?? null;
 }
 
 export const ORG_TYPES = ["hospital", "franchise", "corporate", "academy", "internal"] as const;
@@ -111,6 +116,13 @@ export const upsertOrganization = createServerFn({ method: "POST" })
     if (data.id) {
       const { error } = await supabaseAdmin.from("organizations").update(payload).eq("id", data.id);
       if (error) throw new Error(error.message);
+      await logAudit({
+        actorId: context.userId,
+        actorEmail: actorEmail(context),
+        action: "organization_updated",
+        target: data.id,
+        metadata: { name: data.name },
+      });
       return { id: data.id };
     }
 
@@ -121,6 +133,13 @@ export const upsertOrganization = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "organization_created",
+      target: inserted.id,
+      metadata: { name: data.name },
+    });
     return { id: inserted.id };
   });
 
@@ -137,6 +156,12 @@ export const setOrganizationActive = createServerFn({ method: "POST" })
       .update({ is_active: data.isActive })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: data.isActive ? "organization_activated" : "organization_deactivated",
+      target: data.id,
+    });
     return { ok: true };
   });
 
@@ -198,6 +223,13 @@ export const upsertCenter = createServerFn({ method: "POST" })
     if (data.id) {
       const { error } = await supabaseAdmin.from("centers").update(payload).eq("id", data.id);
       if (error) throw new Error(error.message);
+      await logAudit({
+        actorId: context.userId,
+        actorEmail: actorEmail(context),
+        action: "center_updated",
+        target: data.id,
+        metadata: { name: data.name },
+      });
       return { id: data.id };
     }
 
@@ -207,6 +239,13 @@ export const upsertCenter = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "center_created",
+      target: inserted.id,
+      metadata: { name: data.name, organizationId: data.organizationId },
+    });
     return { id: inserted.id };
   });
 
@@ -220,5 +259,11 @@ export const deleteCenter = createServerFn({ method: "POST" })
     // SET NULL) rather than being blocked — safe to delete outright.
     const { error } = await supabaseAdmin.from("centers").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "center_deleted",
+      target: data.id,
+    });
     return { ok: true };
   });

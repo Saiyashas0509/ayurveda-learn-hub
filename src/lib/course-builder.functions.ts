@@ -5,6 +5,7 @@ import { z } from "zod";
 import { logAudit } from "@/lib/audit";
 
 const FACULTY_ROLES = ["super_admin", "hr_admin", "trainer", "faculty"] as const;
+const COURSE_DELETE_ROLES = ["super_admin", "hr_admin"] as const;
 
 function actorEmail(context: { claims: unknown }): string | null {
   return (context.claims as { email?: string }).email ?? null;
@@ -18,6 +19,20 @@ async function assertFaculty(userId: string) {
     .eq("user_id", userId)
     .in("role", [...FACULTY_ROLES]);
   if (!data || data.length === 0) throw new Error("Forbidden: faculty or admin role required");
+}
+
+// Deleting a whole course is far more destructive than the day-to-day
+// authoring actions above (it cascades away certificates already earned by
+// real learners), so it's restricted to full admins rather than any
+// faculty/trainer who can otherwise edit course content.
+async function assertCourseDeleteAllowed(userId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .in("role", [...COURSE_DELETE_ROLES]);
+  if (!data || data.length === 0) throw new Error("Forbidden: administrator role required");
 }
 
 // courses.duration_minutes is derived from its lessons' actual video lengths
@@ -583,29 +598,31 @@ export const publishCourse = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.rpc("publish_course", { _course_id: data.courseId });
     if (error) throw new Error(error.message);
 
-    // Safety net for "a quiz exists the moment the video is published": the
-    // updateLesson-time trigger above usually already covers this by the
-    // time anyone gets around to publishing, but this closes the gap for
-    // any lesson where that run is still in flight, failed, or the video
-    // was attached some other way. Awaited (not backgrounded) so the
-    // guarantee is real by the time this call returns, at the cost of
-    // publish taking longer for a course with several un-quizzed videos.
-    const { data: videoLessons } = await supabaseAdmin
+    // Safety net for "every lesson has a quiz the moment the course is
+    // published": the updateLesson-time trigger only fires when a video is
+    // attached, so a notes-only lesson (no video) relies entirely on this
+    // pass, and even a video lesson can reach here if that run is still in
+    // flight, failed, or the video was attached some other way. Covers every
+    // lesson, not just video ones — generateLessonQuiz itself skips cleanly
+    // (no quiz created) for a lesson with genuinely not enough content to
+    // work from. Awaited (not backgrounded) so the guarantee is real by the
+    // time this call returns, at the cost of publish taking longer for a
+    // course with several un-quizzed lessons.
+    const { data: allLessons } = await supabaseAdmin
       .from("lessons")
       .select("id")
-      .eq("course_id", data.courseId)
-      .not("video_url", "is", null);
-    if (videoLessons?.length) {
+      .eq("course_id", data.courseId);
+    if (allLessons?.length) {
       const { data: existingQuizzes } = await supabaseAdmin
         .from("quizzes")
         .select("lesson_id")
         .in(
           "lesson_id",
-          videoLessons.map((l) => l.id),
+          allLessons.map((l) => l.id),
         );
       const hasQuiz = new Set((existingQuizzes ?? []).map((q) => q.lesson_id));
       const { generateLessonQuiz } = await import("@/lib/quiz-generation");
-      for (const lesson of videoLessons) {
+      for (const lesson of allLessons) {
         if (hasQuiz.has(lesson.id)) continue;
         await generateLessonQuiz(supabaseAdmin, lesson.id).catch((e) =>
           console.error(`[publishCourse] quiz generation failed for lesson ${lesson.id}:`, e),
@@ -637,6 +654,73 @@ export const unpublishCourse = createServerFn({ method: "POST" })
       actorEmail: actorEmail(context),
       action: "course_unpublished",
       target: data.courseId,
+    });
+    return { ok: true };
+  });
+
+// Powers the confirmation dialog shown before a permanent course delete —
+// counts of what would be lost, so an admin isn't deleting a course with
+// real learner history blind.
+export const getCourseDeleteImpact = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { courseId: string }) =>
+    z.object({ courseId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertCourseDeleteAllowed(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ count: certificateCount }, { count: learnerCount }, { count: lessonCount }] =
+      await Promise.all([
+        supabaseAdmin
+          .from("certificates")
+          .select("id", { count: "exact", head: true })
+          .eq("course_id", data.courseId),
+        supabaseAdmin
+          .from("lesson_progress")
+          .select("id, lessons!inner(course_id)", { count: "exact", head: true })
+          .eq("lessons.course_id", data.courseId),
+        supabaseAdmin
+          .from("lessons")
+          .select("id", { count: "exact", head: true })
+          .eq("course_id", data.courseId),
+      ]);
+    return {
+      certificateCount: certificateCount ?? 0,
+      learnerCount: learnerCount ?? 0,
+      lessonCount: lessonCount ?? 0,
+    };
+  });
+
+export const deleteCourse = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { courseId: string; confirmTitle: string }) =>
+    z
+      .object({
+        courseId: z.string().uuid(),
+        confirmTitle: z.string().trim().min(1).max(200),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertCourseDeleteAllowed(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: course } = await supabaseAdmin
+      .from("courses")
+      .select("id,title")
+      .eq("id", data.courseId)
+      .maybeSingle();
+    if (!course) throw new Error("Course not found");
+    if (course.title !== data.confirmTitle) {
+      throw new Error("Type the course title exactly to confirm deletion");
+    }
+    const { error } = await supabaseAdmin.from("courses").delete().eq("id", data.courseId);
+    if (error) throw new Error(error.message);
+    await logAudit({
+      actorId: context.userId,
+      actorEmail: actorEmail(context),
+      action: "course_deleted",
+      target: data.courseId,
+      metadata: { title: course.title },
     });
     return { ok: true };
   });

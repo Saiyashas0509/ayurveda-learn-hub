@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { AdminHeader } from "@/components/admin/admin-header";
+import { DeleteCourseDialog } from "@/components/admin/delete-course-dialog";
 
 export const Route = createFileRoute("/_authenticated/admin/courses/")({
   component: CourseBuilderList,
@@ -94,11 +95,11 @@ function CourseBuilderList() {
       <div className="rounded-xl border border-border bg-card shadow-card">
         <ul className="divide-y divide-border">
           {data.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} className="flex items-center gap-2 px-5 py-2">
               <Link
                 to="/admin/courses/$courseId"
                 params={{ courseId: c.id }}
-                className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-accent/50"
+                className="flex flex-1 min-w-0 items-center gap-4 rounded-lg py-2 transition-colors hover:bg-accent/50"
               >
                 <div className="flex-1 min-w-0">
                   <p className="truncate font-medium">{c.title}</p>
@@ -113,6 +114,11 @@ function CourseBuilderList() {
                   {c.is_published ? "Published" : "Draft"}
                 </Badge>
               </Link>
+              <DeleteCourseDialog
+                courseId={c.id}
+                courseTitle={c.title}
+                onDeleted={() => qc.invalidateQueries({ queryKey: ["authored-courses"] })}
+              />
             </li>
           ))}
           {data.length === 0 && (

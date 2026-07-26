@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { getUserActivityProfile } from "@/lib/admin.functions";
-import { ROLE_LABELS, type AppRole } from "@/lib/auth-helpers";
+import { useSuspenseQuery, queryOptions, useQueryClient } from "@tanstack/react-query";
+import { getUserActivityProfile, setUserRole } from "@/lib/admin.functions";
+import { ROLE_LABELS, ADMIN_ONLY_ROLES, type AppRole } from "@/lib/auth-helpers";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { StatusPill } from "@/components/admin/status-pill";
 import { DeleteUserDialog } from "@/components/admin/delete-user-dialog";
@@ -11,6 +11,13 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   TABLE_WRAP,
@@ -38,9 +45,12 @@ export const Route = createFileRoute("/_authenticated/admin/users/$userId")({
 function UserProfilePage() {
   const { userId } = Route.useParams();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const fn = useServerFn(getUserActivityProfile);
   const getDownloadUrl = useServerFn(getCertificateDownloadUrl);
+  const setRoleFn = useServerFn(setUserRole);
   const [downloadingCode, setDownloadingCode] = useState<string | null>(null);
+  const [savingRole, setSavingRole] = useState(false);
   const { data } = useSuspenseQuery(
     queryOptions({
       queryKey: ["admin-user-profile", userId],
@@ -60,10 +70,31 @@ function UserProfilePage() {
     }
   };
 
+  const changeRole = async (nextRole: AppRole) => {
+    if ((ADMIN_ONLY_ROLES as string[]).includes(nextRole)) {
+      const ok = window.confirm(
+        `Give ${employee.full_name} full administrator access (${ROLE_LABELS[nextRole]})? They'll be able to manage every user, course, and organization on the platform.`,
+      );
+      if (!ok) return;
+    }
+    setSavingRole(true);
+    try {
+      await setRoleFn({ data: { userId, role: nextRole } });
+      toast.success(`Role changed to ${ROLE_LABELS[nextRole]}.`);
+      qc.invalidateQueries({ queryKey: ["admin-user-profile", userId] });
+      qc.invalidateQueries({ queryKey: ["admin-employees"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't change this user's role");
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
   const { employee, roles, isOnline, lastLogin, sessions, activityLog, certificates } = data;
   const centerName = (employee as { centers?: { name: string } | null }).centers?.name ?? "—";
   const orgName =
     (employee as { organizations?: { name: string } | null }).organizations?.name ?? "—";
+  const currentRole = (roles[0] as AppRole | undefined) ?? "student";
 
   return (
     <div className="space-y-6">
@@ -100,10 +131,24 @@ function UserProfilePage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Status" value={employee.status} />
-        <SummaryCard
-          label="Role(s)"
-          value={roles.length ? roles.map((r) => ROLE_LABELS[r as AppRole] ?? r).join(", ") : "—"}
-        />
+        <div className="rounded-xl border border-border bg-card p-4 shadow-card">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Role</p>
+          <Select value={currentRole} onValueChange={(v) => changeRole(v as AppRole)}>
+            <SelectTrigger
+              disabled={savingRole}
+              className="mt-1 h-auto border-none p-0 text-sm font-semibold shadow-none focus:ring-0"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.entries(ROLE_LABELS) as [AppRole, string][]).map(([v, l]) => (
+                <SelectItem key={v} value={v}>
+                  {l}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <SummaryCard
           label="Last login"
           value={lastLogin ? new Date(lastLogin.loginAt).toLocaleString() : "Never"}

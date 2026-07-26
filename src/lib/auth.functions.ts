@@ -78,12 +78,19 @@ export const requestLoginOtp = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Rate limit: max 3 OTP requests per email per 15 min
+    // Rate limit: max 3 OTP requests per email per 15 min. Deliberately only
+    // counts rows this function itself writes (success: false, below) — a
+    // *successful* login (password or OTP) also writes a login_attempts row
+    // with success: true elsewhere, and counting those too meant an admin
+    // who'd simply logged in with their password a few times recently would
+    // get the generic rate-limit error here instead of the more useful
+    // "use the admin login page" message a few lines down.
     const since = new Date(Date.now() - 15 * 60_000).toISOString();
     const { count: recentReq } = await supabaseAdmin
       .from("login_attempts")
       .select("*", { count: "exact", head: true })
       .eq("email", data.email)
+      .eq("success", false)
       .gte("created_at", since);
     if ((recentReq ?? 0) >= 3) {
       throw new Error("Too many login attempts. Please wait 15 minutes.");

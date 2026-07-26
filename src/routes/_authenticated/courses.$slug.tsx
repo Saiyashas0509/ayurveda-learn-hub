@@ -56,7 +56,7 @@ function CoursePage() {
         <p className="mt-3 max-w-2xl text-primary-foreground/80">{data.course.description}</p>
         <div className="mt-6 flex flex-wrap items-center gap-4 text-sm">
           <span className="rounded-full bg-primary-foreground/10 px-3 py-1">
-            {data.lessons.length} lessons
+            {data.lessons.length} lesson{data.lessons.length === 1 ? "" : "s"}
           </span>
           <span className="rounded-full bg-primary-foreground/10 px-3 py-1">
             <Clock className="mr-1 inline h-3 w-3" /> {data.course.duration_minutes ?? 0} min

@@ -292,6 +292,13 @@ export const scheduleClass = createServerFn({ method: "POST" })
         .update(payload)
         .eq("id", data.id);
       if (error) throw new Error(error.message);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.from("audit_logs").insert({
+        actor_id: context.userId,
+        action: "live_class_updated",
+        target: data.id,
+        metadata: { title: data.title },
+      });
       return { id: data.id };
     }
     const { data: row, error } = await context.supabase
@@ -300,6 +307,13 @@ export const scheduleClass = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("audit_logs").insert({
+      actor_id: context.userId,
+      action: "live_class_scheduled",
+      target: row.id,
+      metadata: { title: data.title, courseId: data.courseId, provider: payload.provider },
+    });
     return { id: row.id };
   });
 

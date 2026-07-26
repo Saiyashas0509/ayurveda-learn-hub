@@ -1081,29 +1081,30 @@ function LessonEditor({
               </div>
             ) : (
               <div className="mt-2 space-y-2">
-                {lesson.video_url && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={generatingQuiz}
-                    onClick={() => {
-                      setGeneratingQuiz(true);
-                      generateQz({ data: { lessonId: lesson.id } })
-                        .then(() => {
-                          toast.success("Quiz generated from this lesson's content");
-                          onChanged();
-                        })
-                        .catch((e) =>
-                          toast.error(e instanceof Error ? e.message : "Couldn't generate a quiz"),
-                        )
-                        .finally(() => setGeneratingQuiz(false));
-                    }}
-                  >
-                    <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-                    {generatingQuiz ? "Generating…" : "Generate quiz with AI"}
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={generatingQuiz}
+                  onClick={() => {
+                    setGeneratingQuiz(true);
+                    generateQz({ data: { lessonId: lesson.id } })
+                      .then(() => {
+                        toast.success("Quiz generated from this lesson's content");
+                        onChanged();
+                      })
+                      .catch((e) =>
+                        toast.error(e instanceof Error ? e.message : "Couldn't generate a quiz"),
+                      )
+                      .finally(() => setGeneratingQuiz(false));
+                  }}
+                >
+                  <Wand2 className="mr-1.5 h-3.5 w-3.5" />
+                  {generatingQuiz ? "Generating…" : "Generate quiz with AI"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Uses this lesson's video (if any), key notes, and description.
+                </p>
                 <Select
                   onValueChange={(id) =>
                     attachQz({ data: { quizId: id, lessonId: lesson.id } }).then(onChanged)
