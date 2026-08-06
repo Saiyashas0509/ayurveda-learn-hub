@@ -1010,7 +1010,7 @@ function LessonEditor({
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Full text of the video's narration — helps learners who prefer reading and makes the
-              lesson searchable. Automatic transcription works for videos under 25MB; for larger
+              lesson searchable. Automatic transcription works for videos under 35MB; for larger
               ones, paste or type the transcript below.
             </p>
             <Textarea

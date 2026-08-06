@@ -14,14 +14,24 @@
 //
 // Cloudflare doesn't publish a file-size limit for this model, so this cap
 // is set from real testing against this exact Worker rather than a spec
-// sheet: two genuine production training videos (28MB and 173MB, real
-// speech, not synthetic filler) both transcribed correctly in ~4 seconds
-// each via env.AI.run() — no memory/timeout issues at either size. 200MB
-// keeps a margin below the largest size actually verified (173MB) rather
-// than extrapolating past tested ground.
+// sheet — and the number below has already been revised down once, so
+// trust the bisection over any earlier claim in this comment's history.
+// A genuine 55.5MB production video crashed the Worker outright with
+// Cloudflare error 1102 ("Worker exceeded resource limits" — memory, not
+// CPU time): fetching the file and holding both its raw bytes and its
+// ~33%-larger base64 encoding in memory simultaneously (env.AI.run's audio
+// input has to be one complete base64 string, not a stream) blows past the
+// Worker's memory ceiling well before 200MB. A follow-up bisection against
+// this exact Worker found 45MB completes safely and 50MB reliably crashes
+// it — so 200MB was never actually safe, it just hadn't been hit by a big
+// enough file yet. 35MB keeps a real margin below the confirmed-safe 45MB.
+// A proper fix would extract just the audio track (much smaller than the
+// full video) or chunk it before encoding, the way Cloudflare's own docs
+// recommend for large files — worth doing if this cap turns out to be too
+// tight in practice, but out of scope for this pass.
 import { VIDEO_BASE_URL } from "@/lib/upload-video";
 
-const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 35 * 1024 * 1024;
 
 type SupabaseAdmin = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 
